@@ -18,6 +18,7 @@ const state = {
   sortHand: false,
   setupSelected: new Set(),
   seatWasHuman: new Set(),
+  phase: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -296,6 +297,16 @@ async function startGame() {
 }
 
 function renderGame(view) {
+  // Reset transient setup selection on transition INTO setup (rematch,
+  // reconnect, initial enter from lobby). Peer-triggered re-renders during
+  // setup keep `wasPhase === "setup"` so the user's in-progress picks
+  // survive.
+  const wasPhase = state.phase;
+  state.phase = view.phase;
+  if (view.phase === "setup" && wasPhase !== "setup" && !view.you?.ready) {
+    state.setupSelected.clear();
+  }
+
   state.view = view;
   $("room-view").hidden = true;
   $("game-view").hidden = false;
@@ -390,7 +401,9 @@ function renderSetup(view) {
     me.choose.forEach((c, idx) => {
       const el = makeFaceCard(c);
       el.setAttribute("role", "listitem");
-      if (state.setupSelected.has(idx)) el.classList.add("selected");
+      const isSelected = state.setupSelected.has(idx);
+      if (isSelected) el.classList.add("selected");
+      el.setAttribute("aria-pressed", isSelected ? "true" : "false");
       el.addEventListener("click", () => toggleSetupSelect(idx));
       row.appendChild(el);
     });
