@@ -27,9 +27,9 @@
 
 ## 5. Frontend: status stack
 
-- [ ] 5.1 In `static/index.html`, rename `#status-line` to `#status-stack` (keeping it inside the same parent) and remove the old `aria-live` from the container; nested `.status-entry` elements will carry their own `aria-live` / `aria-hidden`.
-- [ ] 5.2 In `static/styles.css`, replace `.status-line` styling with `.status-stack` (column flex, gap) and `.status-entry` (rounded, accent border) with a `.status-entry.dim` variant for older entries. Use `prefers-reduced-motion` to skip any opacity transitions.
-- [ ] 5.3 In `static/app.js`, replace `renderStatus(view)` with one that:
+- [x] 5.1 In `static/index.html`, rename `#status-line` to `#status-stack` (keeping it inside the same parent) and remove the old `aria-live` from the container; nested `.status-entry` elements will carry their own `aria-live` / `aria-hidden`.
+- [x] 5.2 In `static/styles.css`, replace `.status-line` styling with `.status-stack` (column flex, gap) and `.status-entry` (rounded, accent border) with a `.status-entry.dim` variant for older entries. Use `prefers-reduced-motion` to skip any opacity transitions.
+- [x] 5.3 In `static/app.js`, replace `renderStatus(view)` with one that:
   - Reads `view.last_actions` (array). Falls back to a single-element array constructed from `view.last_action` (string) when `last_actions` is missing.
   - Renders each entry into its own `.status-entry`. The newest carries `aria-live="polite"`, includes the turn suffix, and shows burn/pickup/finish glyphs based on flags. Older entries get `.dim` and `aria-hidden="true"`.
   - Glyph rules: `burned` → trailing 🔥; `picked_up` → trailing ↑; `finished_pid` → 👑 plus the finishing player's display name (look up via `view.players`).
@@ -42,5 +42,5 @@
 
 ## 7. Wrap up
 
-- [ ] 7.1 Run `openspec status --change show-last-three-moves` and confirm 4/4 artifacts done.
+- [x] 7.1 Run `openspec status --change show-last-three-moves` and confirm 4/4 artifacts done. _(verified)_
 - [ ] 7.2 Archive the change via `/opsx:archive` after smoke + spec review.

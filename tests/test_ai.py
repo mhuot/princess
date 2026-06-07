@@ -83,15 +83,21 @@ def test_ai_obeys_seven_under_rule():
 
 
 def test_full_ai_vs_ai_game_terminates():
-    """End-to-end smoke: two bots playing finishes in finite turns."""
+    """End-to-end smoke: two bots playing finishes in finite turns.
+
+    Both the game's deal (via _g's fixed seed) and the AI's blind-pick RNG
+    are seeded so this test is fully deterministic. With unseeded random,
+    the AI vs AI loop occasionally exceeded 5000 iterations on CI.
+    """
     game = _g()
+    rng = random.Random(42)
     for _ in range(5000):
         if game.game_over:
             break
         p = game.current_player
         if not p.has_any_cards():
             break
-        d = decide(game, p, rng=random.Random())
+        d = decide(game, p, rng=rng)
         if d.action == "pickup":
             game.pickup(p.pid)
         else:

@@ -222,7 +222,7 @@ function renderGame(view) {
     $("opponents").hidden = true;
     document.querySelector(".pile-area").hidden = true;
     document.querySelector(".legend").hidden = true;
-    $("status-line").hidden = true;
+    $("status-stack").hidden = true;
     $("setup-area").hidden = true;
     $("you-area").hidden = true;
     $("game-over").hidden = false;
@@ -233,7 +233,7 @@ function renderGame(view) {
   $("opponents").hidden = false;
   document.querySelector(".pile-area").hidden = false;
   document.querySelector(".legend").hidden = false;
-  $("status-line").hidden = false;
+  $("status-stack").hidden = false;
   $("game-over").hidden = true;
 
   renderOpponents(view);
@@ -653,13 +653,45 @@ function sendAction(msg) {
 }
 
 function renderStatus(view) {
-  const line = view.last_action || "";
+  const stack = $("status-stack");
+  stack.innerHTML = "";
+  // Prefer the new structured list; fall back to the legacy single string.
+  let entries = Array.isArray(view.last_actions) ? view.last_actions.slice() : null;
+  if (!entries) {
+    const text = view.last_action || "";
+    entries = text ? [{ text }] : [];
+  }
+  if (!entries.length) return;
+
   const me = view.you;
   let suffix = "";
   if (!view.game_over) {
     suffix = me.your_turn ? " — Your turn." : ` — ${currentName(view)}'s turn.`;
   }
-  $("status-line").textContent = line + suffix;
+
+  entries.forEach((entry, idx) => {
+    const isNewest = idx === entries.length - 1;
+    const el = document.createElement("p");
+    el.className = "status-entry" + (isNewest ? " newest" : " dim");
+    if (entry.burned) el.classList.add("burned");
+    if (entry.picked_up) el.classList.add("picked-up");
+    if (entry.finished_pid) el.classList.add("finished");
+    let text = entry.text || "";
+    if (entry.burned) text += " 🔥";
+    if (entry.picked_up) text += " ↑";
+    if (entry.finished_pid) {
+      const p = view.players.find((pl) => pl.pid === entry.finished_pid);
+      if (p) text += ` 👑 ${p.name}`;
+    }
+    if (isNewest) {
+      el.textContent = text + suffix;
+      el.setAttribute("aria-live", "polite");
+    } else {
+      el.textContent = text;
+      el.setAttribute("aria-hidden", "true");
+    }
+    stack.appendChild(el);
+  });
 }
 
 function currentName(view) {
