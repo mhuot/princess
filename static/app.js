@@ -32,7 +32,6 @@ document.addEventListener("DOMContentLoaded", () => {
   $("sort-hand-btn").addEventListener("click", toggleSortHand);
   $("lock-in-btn").addEventListener("click", lockInSetup);
   $("cfg-reverse-rank").addEventListener("change", saveConfig);
-  $("cfg-same-on-reverse").addEventListener("change", saveConfig);
   $("rematch-btn").addEventListener("click", playRematch);
   $("new-game-btn").addEventListener("click", () => location.reload());
   $("quit-btn").addEventListener("click", quitGame);
@@ -188,11 +187,6 @@ function renderConfigPanel(room) {
     rankSelect.value = String(cfg.reverse_rank ?? 5);
     rankSelect.disabled = !state.isHost;
   }
-  const same = $("cfg-same-on-reverse");
-  if (same) {
-    same.checked = cfg.same_on_reverse !== false; // default true
-    same.disabled = !state.isHost;
-  }
   $("config-readonly-note").hidden = state.isHost;
 }
 
@@ -200,7 +194,6 @@ async function saveConfig() {
   if (!state.isHost) return;
   const config = {
     reverse_rank: parseInt($("cfg-reverse-rank").value, 10),
-    same_on_reverse: $("cfg-same-on-reverse").checked,
   };
   try {
     await postJSON(`/api/rooms/${state.code}/config`, {
@@ -269,17 +262,14 @@ function renderLegend(view) {
   const cfg = view.config || {};
   const reverse = reverseRankOf(view);
   const reverseLabel = rankLabel(reverse);
-  const sameSuffix = cfg.same_on_reverse
-    ? ` — another ${reverseLabel} is also legal (house rule).`
-    : "";
   const items = [
     { rank: "2", title: "Wild reset", body: "Always legal; next player can play anything." },
     {
       rank: reverseLabel,
-      title: "Reverse",
-      body: `Next card must be UNDER ${reverseLabel}.${sameSuffix}`,
+      title: "Reverse (wild)",
+      body: `Always legal; the next card must be UNDER ${reverseLabel}.`,
     },
-    { rank: "10", title: "Burn", body: "Clears the pile; you play again." },
+    { rank: "10", title: "Burn", body: "Always legal; clears the pile; you play again." },
     { rank: "4×", title: "Four of a kind", body: "Four same-rank cards in a row on the pile burns it." },
     { rank: "", title: "Can't play?", body: "Pick up the pile — the turn passes." },
   ];
@@ -444,9 +434,7 @@ function renderPile(view) {
   const reverse = reverseRankOf(view);
   const reverseLabel = rankLabel(reverse);
   if (view.under_reverse || view.under_seven) {
-    rule.textContent = view.config?.same_on_reverse
-      ? `play UNDER ${reverseLabel} (or another ${reverseLabel})`
-      : `must play UNDER ${reverseLabel}`;
+    rule.textContent = `play UNDER ${reverseLabel} (or another ${reverseLabel})`;
     rule.classList.add("alert");
   } else {
     rule.textContent = view.pile_top ? "match or beat" : "anything";
@@ -575,15 +563,13 @@ function buildSelectableCard(card, idx, view, sourceName) {
 }
 
 function isLegalRank(rank, view) {
-  if (rank === 2 || rank === 10) return true;
+  const reverse = reverseRankOf(view);
+  // Three wilds: 2, 10, and the reverse rank are always legal.
+  if (rank === 2 || rank === 10 || rank === reverse) return true;
   const top = view.pile_top;
   if (!top) return true;
-  const reverse = reverseRankOf(view);
   const reverseActive = view.under_reverse ?? view.under_seven ?? (top.rank === reverse);
-  if (reverseActive) {
-    if (rank === reverse) return !!view.config?.same_on_reverse;
-    return rank < reverse;
-  }
+  if (reverseActive) return rank < reverse;
   return rank >= top.rank;
 }
 
@@ -612,9 +598,9 @@ function reverseRankOf(view) {
 
 function specialCardInfo(rank, view) {
   if (rank === 2) return "Wild reset — always legal; next player can play anything.";
-  if (rank === 10) return "Burn — clears the pile; you play again.";
+  if (rank === 10) return "Burn — always legal; clears the pile; you play again.";
   if (rank === reverseRankOf(view)) {
-    return `Reverse — next card must be UNDER ${rankLabel(rank)}.`;
+    return `Wild + Reverse — always legal; next play must be UNDER ${rankLabel(rank)}.`;
   }
   return null;
 }

@@ -48,14 +48,13 @@ LEGAL_REVERSE_RANKS = frozenset({3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14})
 class GameConfig:
     """Per-room rule toggles. Defaults match the house variant.
 
-    The reverse rank is the rank that, when on top of the pile, forces the
-    next play to be UNDER it. Default 5 (the project's house rule). The
-    rank itself can also be played onto itself when ``same_on_reverse``
-    is true (the default).
+    The reverse rank is the rank that triggers the under-rule when it lands
+    on the pile (default 5). The reverse rank is itself a wild card: it is
+    always legal regardless of pile top, joining 2 (reset) and 10 (burn) as
+    the third unconditionally-legal rank.
     """
 
     reverse_rank: int = DEFAULT_REVERSE_RANK
-    same_on_reverse: bool = True
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -73,8 +72,8 @@ class GameConfig:
             if rank not in LEGAL_REVERSE_RANKS:
                 rank = DEFAULT_REVERSE_RANK
             kwargs["reverse_rank"] = rank
-        if "same_on_reverse" in data:
-            kwargs["same_on_reverse"] = bool(data["same_on_reverse"])
+        # `same_on_reverse` and `seven_on_seven` are silently dropped for
+        # forward compatibility — both are subsumed by the wild rule.
         return cls(**kwargs)
 
 
@@ -235,16 +234,15 @@ class Game:
         return self.top_rank() == self.config.reverse_rank
 
     def is_legal_rank(self, rank: int) -> bool:
-        if rank in (WILD_RESET, BURN_CARD):
+        # Three wild ranks are always legal: 2 (reset), 10 (burn), and the
+        # configured reverse rank.
+        if rank in (WILD_RESET, BURN_CARD) or rank == self.config.reverse_rank:
             return True
         top = self.top_rank()
         if top is None:
             return True
         if self.under_reverse_active():
-            reverse = self.config.reverse_rank
-            if rank == reverse:
-                return self.config.same_on_reverse
-            return rank < reverse
+            return rank < self.config.reverse_rank
         return rank >= top
 
     def is_legal_play(self, cards: list[Card]) -> bool:

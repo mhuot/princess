@@ -85,18 +85,15 @@ def test_config_updates_reverse_rank():
     code, host_pid = _bootstrap_lobby(client)
     res = client.post(
         f"/api/rooms/{code}/config",
-        json={
-            "host_pid": host_pid,
-            "config": {"reverse_rank": 13, "same_on_reverse": False},
-        },
+        json={"host_pid": host_pid, "config": {"reverse_rank": 13}},
     )
     assert res.status_code == 200
     cfg = res.json()["config"]
     assert cfg["reverse_rank"] == 13
-    assert cfg["same_on_reverse"] is False
+    assert "same_on_reverse" not in cfg
     room = rooms_module.REGISTRY.get(code)
     assert room.config.reverse_rank == 13
-    assert room.config.same_on_reverse is False
+    assert not hasattr(room.config, "same_on_reverse")
 
 
 def test_config_rejected_for_non_host():
@@ -131,8 +128,8 @@ def test_config_ignores_unknown_keys():
             "host_pid": host_pid,
             "config": {
                 "reverse_rank": 9,
-                "same_on_reverse": True,
-                "seven_on_seven": False,  # legacy key — silently dropped
+                "same_on_reverse": True,  # legacy — silently dropped
+                "seven_on_seven": False,  # legacy — silently dropped
                 "fake_rule": True,
             },
         },
@@ -140,7 +137,7 @@ def test_config_ignores_unknown_keys():
     assert res.status_code == 200
     cfg = res.json()["config"]
     assert cfg["reverse_rank"] == 9
-    assert cfg["same_on_reverse"] is True
+    assert "same_on_reverse" not in cfg
     assert "seven_on_seven" not in cfg
     assert "fake_rule" not in cfg
 

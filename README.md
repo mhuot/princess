@@ -34,16 +34,15 @@ Open <http://127.0.0.1:8000>, enter a name, click **Create new room**, click **A
 
 This is the one rule that makes Princess Princess.
 
-> **When the top of the discard pile is the reverse rank, the next card must be UNDER it.**
+> **The reverse rank is a wild card. Playing it forces the next play to be UNDER it.**
 
-The default reverse rank is **5**, so `5 → 4`, `5 → 3`, `5 → 2` are all legal. `5 → 8` is not. Two specials always work regardless of the reverse rank:
+The default reverse rank is **5**, so `5 → 4`, `5 → 3`, `5 → 2` are all legal. `5 → 8` is not. There are **three wild ranks** — each one is always legal regardless of the pile top:
 
-- **10** is always legal — it burns the pile and you go again.
-- **2** is always legal — it resets the pile to "anything goes."
+- **2** — wild reset. Resets the pile so anything goes.
+- **10** — burn. Clears the pile; you play again.
+- **The reverse rank itself** (default 5) — always legal AND forces the next play to be UNDER it. So a 5 can land on a King; the next player then needs an under-5, a 2, a 10, or another 5.
 
-By default, the **reverse rank itself is legal on the reverse rank** (e.g. 5 on 5 is fine — toggleable in the house-rules panel).
-
-The reverse rank is tunable per room from the lobby's **House rules** panel: pick any rank from 3 through A (except the wilds 2 and 10). Want a 7-under variant? Set it to 7. Want a high-stakes A-under? Set it to A.
+The reverse rank is tunable per room from the lobby's **House rules** panel: pick any rank from 3 through A (excluding the other wilds, 2 and 10). Want a 7-under variant? Set it to 7. Want a high-stakes A-under? Set it to A.
 
 ## Features
 
