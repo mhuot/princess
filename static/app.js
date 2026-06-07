@@ -825,6 +825,26 @@ function renderResults(view) {
     : winner
       ? "Better luck next round."
       : "";
+
+  // Show the round-ending action with the same glyphs as the status stack
+  // so the winning play is the line you read directly under the winner.
+  const finalSlot = $("winner-final-action");
+  const finalEntry = Array.isArray(view.last_actions) && view.last_actions.length
+    ? view.last_actions[view.last_actions.length - 1]
+    : null;
+  if (finalEntry && finalEntry.text) {
+    let text = finalEntry.text;
+    if (finalEntry.burned) text += " 🔥";
+    if (finalEntry.picked_up) text += " ↑";
+    if (finalEntry.finished_pid) {
+      const p = view.players.find((pl) => pl.pid === finalEntry.finished_pid);
+      if (p) text += ` 👑 ${p.name}`;
+    }
+    finalSlot.textContent = text;
+  } else {
+    finalSlot.textContent = "";
+  }
+
   view.finished_order.forEach((pid, i) => {
     const p = view.players.find((pl) => pl.pid === pid);
     if (!p) return;
