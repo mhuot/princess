@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Setup phase no longer carries selections across rematches or reconnects — `state.setupSelected` is reset on every transition INTO `phase: "setup"` (peer-triggered re-renders during setup keep your in-progress picks intact). The `.selected` style is also visually distinct from the wild-rank ★ badge: selected cards now wear a 4px accent border and a bottom-left ✓ glyph (opposite the wild ★ in the top-right). Choose-card buttons carry `aria-pressed` for screen-reader users. [setup-no-auto-preselect]
+
 ### Added
 
 - Host can **remove a bot seat** from the lobby via a per-row Remove button (`POST /api/rooms/{code}/remove_bot`). Lobby-only; host-only. [lobby-rename-and-remove-bots]
