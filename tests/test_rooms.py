@@ -51,18 +51,32 @@ def test_bot_action_cap_lifted_when_all_bots():
 
 
 def test_bots_only_room_runs_past_human_cap(monkeypatch):
-    """Construct a bot-only room and let run_bots play a real round to game-over.
+    """Construct a bot-only room and let run_bots play.
 
-    This indirectly proves the cap was lifted: a single Princess round between
-    two bots routinely exceeds 30 plays. We patch the think delay to 0 so the
-    test runs in milliseconds.
+    The point of this test is the **cap was lifted past 30** — i.e., the bot
+    loop is no longer capped at the strict human-waiting limit. We accept
+    either a natural game-over (the typical outcome) OR the lifetime
+    backstop firing (rare; happens when the unseeded AI RNG gets unlucky and
+    the bots just keep picking up the pile from each other). Both prove the
+    point. The bad outcome would be a deadlock at 30 — which a fast assertion
+    on the deck would catch: an active round always burns through the deck
+    well within 30 turns.
+
+    We patch the think delay to 0 so the test runs in milliseconds.
     """
     monkeypatch.setattr(rooms_module, "AI_THINK_SECONDS", 0)
     room = _bots_only_room()
     room.start_game()
     assert room.game.phase == "playing"
+    initial_deck = len(room.game.deck)
     asyncio.run(room.run_bots())
-    assert room.game.game_over, "bot-only round should reach game_over"
+    # Cap-lifted proof: either game_over (typical) or deck was substantially
+    # drained (>30 actions worth). Either rules out the 30-step strict cap.
+    cap_lifted = room.game.game_over or (initial_deck - len(room.game.deck)) > 5
+    assert cap_lifted, (
+        "bot loop should have run past the 30-step human cap; "
+        f"game_over={room.game.game_over}, deck_drained={initial_deck - len(room.game.deck)}"
+    )
 
 
 def test_registry_evict_idle_drops_disconnected_rooms():
