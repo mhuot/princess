@@ -31,7 +31,8 @@ document.addEventListener("DOMContentLoaded", () => {
   $("pickup-btn").addEventListener("click", pickup);
   $("sort-hand-btn").addEventListener("click", toggleSortHand);
   $("lock-in-btn").addEventListener("click", lockInSetup);
-  $("cfg-seven-on-seven").addEventListener("change", saveConfig);
+  $("cfg-reverse-rank").addEventListener("change", saveConfig);
+  $("cfg-same-on-reverse").addEventListener("change", saveConfig);
   $("rematch-btn").addEventListener("click", playRematch);
   $("new-game-btn").addEventListener("click", () => location.reload());
   $("quit-btn").addEventListener("click", quitGame);
@@ -182,15 +183,25 @@ function badge(cls, text) {
 
 function renderConfigPanel(room) {
   const cfg = room.config || {};
-  const seven = $("cfg-seven-on-seven");
-  seven.checked = !!cfg.seven_on_seven;
-  seven.disabled = !state.isHost;
+  const rankSelect = $("cfg-reverse-rank");
+  if (rankSelect) {
+    rankSelect.value = String(cfg.reverse_rank ?? 5);
+    rankSelect.disabled = !state.isHost;
+  }
+  const same = $("cfg-same-on-reverse");
+  if (same) {
+    same.checked = cfg.same_on_reverse !== false; // default true
+    same.disabled = !state.isHost;
+  }
   $("config-readonly-note").hidden = state.isHost;
 }
 
 async function saveConfig() {
   if (!state.isHost) return;
-  const config = { seven_on_seven: $("cfg-seven-on-seven").checked };
+  const config = {
+    reverse_rank: parseInt($("cfg-reverse-rank").value, 10),
+    same_on_reverse: $("cfg-same-on-reverse").checked,
+  };
   try {
     await postJSON(`/api/rooms/${state.code}/config`, {
       host_pid: state.pid,
@@ -256,12 +267,18 @@ function renderLegend(view) {
   const list = $("legend-list");
   if (!list) return;
   const cfg = view.config || {};
-  const sevenSuffix = cfg.seven_on_seven
-    ? " — another 7 is also legal (house rule)."
+  const reverse = reverseRankOf(view);
+  const reverseLabel = rankLabel(reverse);
+  const sameSuffix = cfg.same_on_reverse
+    ? ` — another ${reverseLabel} is also legal (house rule).`
     : "";
   const items = [
     { rank: "2", title: "Wild reset", body: "Always legal; next player can play anything." },
-    { rank: "7", title: "Reverse", body: `Next card must be UNDER 7.${sevenSuffix}` },
+    {
+      rank: reverseLabel,
+      title: "Reverse",
+      body: `Next card must be UNDER ${reverseLabel}.${sameSuffix}`,
+    },
     { rank: "10", title: "Burn", body: "Clears the pile; you play again." },
     { rank: "4×", title: "Four of a kind", body: "Four same-rank cards in a row on the pile burns it." },
     { rank: "", title: "Can't play?", body: "Pick up the pile — the turn passes." },
@@ -392,7 +409,7 @@ function miniCard(c) {
   el.className = "mini-card";
   el.textContent = c.label.replace(/[SHDC]$/, "");
   el.style.color = isRedSuit(c.suit) ? "#a3002b" : "#11111b";
-  const special = specialCardInfo(c.rank);
+  const special = specialCardInfo(c.rank, state.view);
   el.title = special ? `${c.label}\n${special}` : c.label;
   if (special) el.classList.add("special");
   return el;
@@ -412,7 +429,7 @@ function renderPile(view) {
     pile.textContent = "";
     pile.appendChild(makeCardFace(view.pile_top));
     pile.classList.add(isRedSuit(view.pile_top.suit) ? "red" : "black");
-    const special = specialCardInfo(view.pile_top.rank);
+    const special = specialCardInfo(view.pile_top.rank, view);
     pile.title = special
       ? `${view.pile_top.label}\n${special}`
       : view.pile_top.label;
@@ -424,10 +441,12 @@ function renderPile(view) {
   $("pile-size").textContent = `${view.pile_size} card${view.pile_size === 1 ? "" : "s"}`;
   $("deck-count").textContent = view.deck_count;
   const rule = $("rule-indicator");
-  if (view.under_seven) {
-    rule.textContent = view.config?.seven_on_seven
-      ? "play UNDER 7 (or another 7)"
-      : "must play UNDER 7";
+  const reverse = reverseRankOf(view);
+  const reverseLabel = rankLabel(reverse);
+  if (view.under_reverse || view.under_seven) {
+    rule.textContent = view.config?.same_on_reverse
+      ? `play UNDER ${reverseLabel} (or another ${reverseLabel})`
+      : `must play UNDER ${reverseLabel}`;
     rule.classList.add("alert");
   } else {
     rule.textContent = view.pile_top ? "match or beat" : "anything";
@@ -559,9 +578,11 @@ function isLegalRank(rank, view) {
   if (rank === 2 || rank === 10) return true;
   const top = view.pile_top;
   if (!top) return true;
-  if (view.under_seven) {
-    if (rank === 7) return !!view.config?.seven_on_seven;
-    return rank < 7;
+  const reverse = reverseRankOf(view);
+  const reverseActive = view.under_reverse ?? view.under_seven ?? (top.rank === reverse);
+  if (reverseActive) {
+    if (rank === reverse) return !!view.config?.same_on_reverse;
+    return rank < reverse;
   }
   return rank >= top.rank;
 }
@@ -570,7 +591,7 @@ function makeFaceCard(c) {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = `card ${isRedSuit(c.suit) ? "red" : "black"}`;
-  const special = specialCardInfo(c.rank);
+  const special = specialCardInfo(c.rank, state.view);
   const aria = special ? `${c.label} card — ${special}` : `${c.label} card`;
   btn.setAttribute("aria-label", aria);
   btn.title = special ? `${c.label}\n${special}` : c.label;
@@ -579,10 +600,22 @@ function makeFaceCard(c) {
   return btn;
 }
 
-function specialCardInfo(rank) {
+const RANK_LABEL = { 11: "J", 12: "Q", 13: "K", 14: "A" };
+
+function rankLabel(rank) {
+  return RANK_LABEL[rank] || String(rank);
+}
+
+function reverseRankOf(view) {
+  return view?.config?.reverse_rank ?? 5;
+}
+
+function specialCardInfo(rank, view) {
   if (rank === 2) return "Wild reset — always legal; next player can play anything.";
-  if (rank === 7) return "Reverse — next card must be UNDER 7.";
   if (rank === 10) return "Burn — clears the pile; you play again.";
+  if (rank === reverseRankOf(view)) {
+    return `Reverse — next card must be UNDER ${rankLabel(rank)}.`;
+  }
   return null;
 }
 

@@ -7,7 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-(nothing yet)
+### Changed
+
+- Reverse-rank house rule now defaults to **5**, not 7. The rank itself is now configurable per room from the lobby's House rules panel (legal ranks: 3, 4, 5, 6, 7, 8, 9, J, Q, K, A — wild ranks 2 and 10 are excluded). [tunable-reverse-rank]
+- `GameConfig` gains `reverse_rank: int` (default 5) and `same_on_reverse: bool` (default true). The boolean replaces the previous `seven_on_seven` field.
+- Frontend rule indicator, hover tooltip, and "Special cards & house rules" legend now render the rank dynamically based on the room config.
+
+### Removed
+
+- `GameConfig.seven_on_seven` — replaced by `reverse_rank` + `same_on_reverse`. Legacy clients sending the old key are silently dropped (no error); they inherit the new defaults.
+- `princess.game.REVERSE_CARD` module constant — the value now lives in `GameConfig.reverse_rank`.
 
 ## [0.1.0] — 2026-06-07
 

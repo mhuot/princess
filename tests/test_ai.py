@@ -70,16 +70,17 @@ def test_ai_completes_four_of_a_kind_burn():
     assert len(chosen) == 2  # plays exactly enough to make four
 
 
-def test_ai_obeys_seven_under_rule():
+def test_ai_obeys_reverse_rank_rule():
+    # Default reverse rank is 5: 8 is illegal on a 5, 3 is the only legal hand card.
     game = _g()
     p = game.players[0]
-    p.hand = [Card(8, "S"), Card(5, "H")]
-    game.pile = [Card(7, "C")]
+    p.hand = [Card(8, "S"), Card(3, "H")]
+    game.pile = [Card(5, "C")]
     game.current_idx = 0
     decision = decide(game, p, rng=random.Random(0))
     assert decision.action == "play"
     chosen = [p.hand[i] for i in decision.indices]
-    assert chosen[0].rank == 5
+    assert chosen[0].rank == 3
 
 
 def test_full_ai_vs_ai_game_terminates():

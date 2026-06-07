@@ -14,8 +14,10 @@ context: |
   carries the standard Apache 2.0 header naming Mike Huot.
 
   House rules (engine defaults):
-  - 7 forces the next play to be UNDER 7. (The "7-under" rule.)
-  - Optional: another 7 IS legal on a 7 (GameConfig.seven_on_seven = True by default).
+  - The configured reverse rank (default 5) forces the next play to be UNDER it.
+    GameConfig.reverse_rank carries the integer rank (3–14 excluding the wild
+    ranks 2 and 10); same_on_reverse (default true) allows the rank itself to be
+    played onto itself.
   - 2 is a wild reset (always legal; next play unrestricted).
   - 10 burns the pile (always legal; same player plays again).
   - Four of the same rank in a row on the pile burns it (same player replays).

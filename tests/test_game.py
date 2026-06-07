@@ -14,7 +14,7 @@ You may obtain a copy of the License at
 import pytest
 
 from princess.cards import Card, make_deck
-from princess.game import Game, Player, Source
+from princess.game import DEFAULT_REVERSE_RANK, Game, GameConfig, Player, Source
 
 
 def fresh_game(num_players: int = 2, seed: int = 1) -> Game:
@@ -63,8 +63,9 @@ def test_starter_avoids_2_and_10_when_picking_lowest():
 
 
 def test_basic_legal_play_meets_or_exceeds_top():
+    # Pile top 4 avoids triggering the default reverse rank (5).
     game = fresh_game()
-    rig(game, idx=0, hand=[Card(8, "S")], pile=[Card(5, "C")])
+    rig(game, idx=0, hand=[Card(8, "S")], pile=[Card(4, "C")])
     result = game.play("p0", Source.HAND, [0])
     assert result.ok, result.error
     assert game.pile[-1].rank == 8
@@ -78,23 +79,23 @@ def test_lower_card_is_illegal():
     assert "illegal" in result.error
 
 
-def test_seven_forces_next_play_under_seven():
+def test_reverse_rank_forces_next_play_under_default_5():
     game = fresh_game()
-    rig(game, idx=0, hand=[Card(8, "S")], pile=[Card(7, "C")])
+    rig(game, idx=0, hand=[Card(8, "S")], pile=[Card(5, "C")])
     result = game.play("p0", Source.HAND, [0])
-    assert not result.ok, "8 should be illegal after 7"
+    assert not result.ok, "8 should be illegal after the default reverse rank 5"
 
 
-def test_seven_under_allows_lower_cards():
+def test_reverse_rank_allows_lower_cards():
     game = fresh_game()
-    rig(game, idx=0, hand=[Card(5, "S")], pile=[Card(7, "C")])
+    rig(game, idx=0, hand=[Card(3, "S")], pile=[Card(5, "C")])
     result = game.play("p0", Source.HAND, [0])
     assert result.ok
 
 
-def test_seven_under_still_allows_10_burn():
+def test_burn_legal_over_reverse_rank():
     game = fresh_game()
-    rig(game, idx=0, hand=[Card(10, "S")], pile=[Card(7, "C")])
+    rig(game, idx=0, hand=[Card(10, "S")], pile=[Card(5, "C")])
     result = game.play("p0", Source.HAND, [0])
     assert result.ok
     assert result.burned
@@ -102,12 +103,61 @@ def test_seven_under_still_allows_10_burn():
     assert game.pile == []
 
 
-def test_seven_under_still_allows_2_reset():
+def test_reset_legal_over_reverse_rank():
     game = fresh_game()
-    rig(game, idx=0, hand=[Card(2, "S")], pile=[Card(7, "C")])
+    rig(game, idx=0, hand=[Card(2, "S")], pile=[Card(5, "C")])
     result = game.play("p0", Source.HAND, [0])
     assert result.ok
     assert game.top_rank() == 2
+
+
+def test_same_on_reverse_legal_by_default():
+    game = fresh_game()
+    rig(game, idx=0, hand=[Card(5, "H")], pile=[Card(5, "C")])
+    result = game.play("p0", Source.HAND, [0])
+    assert result.ok
+    assert game.top_rank() == 5
+
+
+def test_same_on_reverse_illegal_when_toggle_off():
+    game = fresh_game(num_players=2)
+    game.config = GameConfig(reverse_rank=5, same_on_reverse=False)
+    rig(game, idx=0, hand=[Card(5, "H")], pile=[Card(5, "C")])
+    result = game.play("p0", Source.HAND, [0])
+    assert not result.ok
+
+
+@pytest.mark.parametrize(
+    "reverse,top,attempt,expected_ok",
+    [
+        (4, 4, 3, True),  # under 4: 3 is legal
+        (4, 4, 5, False),  # 5 is not under 4 on a 4 (and same_on_reverse only affects same rank)
+        (9, 9, 8, True),  # under 9: 8 is legal
+        (9, 9, 10, True),  # 10 always legal (burn)
+        (13, 13, 12, True),  # under K: Q is legal
+        (13, 13, 14, False),  # A on K when reverse is K → illegal
+        (14, 14, 13, True),  # under A: K is legal
+        (14, 14, 14, True),  # same_on_reverse default: A on A legal
+    ],
+)
+def test_reverse_rank_configurable(reverse, top, attempt, expected_ok):
+    game = fresh_game(num_players=2)
+    game.config = GameConfig(reverse_rank=reverse)
+    rig(game, idx=0, hand=[Card(attempt, "S")], pile=[Card(top, "C")])
+    result = game.play("p0", Source.HAND, [0])
+    assert result.ok is expected_ok
+
+
+def test_reverse_rank_invalid_coerces_to_default():
+    cfg = GameConfig.from_dict({"reverse_rank": 10})  # 10 is wild, not legal
+    assert cfg.reverse_rank == DEFAULT_REVERSE_RANK
+    assert cfg.same_on_reverse is True
+
+
+def test_legacy_seven_on_seven_key_ignored():
+    cfg = GameConfig.from_dict({"seven_on_seven": False})
+    assert cfg.reverse_rank == DEFAULT_REVERSE_RANK
+    assert cfg.same_on_reverse is True
 
 
 def test_2_acts_as_reset_for_next_play():
@@ -138,7 +188,7 @@ def test_four_of_a_kind_in_single_play_burns():
         game,
         idx=0,
         hand=[Card(8, "S"), Card(8, "H"), Card(8, "D"), Card(8, "C")],
-        pile=[Card(5, "C")],
+        pile=[Card(4, "C")],
     )
     result = game.play("p0", Source.HAND, [0, 1, 2, 3])
     assert result.ok
@@ -182,7 +232,7 @@ def test_hand_refills_from_deck_after_play():
         game,
         idx=0,
         hand=[Card(8, "S")],
-        pile=[Card(5, "C")],
+        pile=[Card(4, "C")],
         deck=[Card(11, "S"), Card(12, "H"), Card(13, "D")],
     )
     result = game.play("p0", Source.HAND, [0])
@@ -192,7 +242,7 @@ def test_hand_refills_from_deck_after_play():
 
 def test_no_refill_when_deck_empty():
     game = fresh_game()
-    rig(game, idx=0, hand=[Card(8, "S")], pile=[Card(5, "C")], deck=[])
+    rig(game, idx=0, hand=[Card(8, "S")], pile=[Card(4, "C")], deck=[])
     result = game.play("p0", Source.HAND, [0])
     assert result.ok
     assert game.players[0].hand == []
@@ -206,7 +256,7 @@ def test_transition_to_face_up_when_hand_and_deck_empty():
         hand=[],
         face_up=[Card(8, "S")],
         face_down=[Card(3, "S"), Card(4, "H"), Card(5, "D")],
-        pile=[Card(5, "C")],
+        pile=[Card(4, "C")],
         deck=[],
     )
     assert game.active_source(game.players[0]) is Source.FACE_UP
@@ -315,10 +365,12 @@ def test_view_for_hides_other_players_hands():
         assert "hand_count" in p_view
 
 
-def test_under_seven_active_flag_in_view():
+def test_under_reverse_active_flag_in_view():
     game = fresh_game()
-    rig(game, idx=0, hand=[Card(5, "S")], pile=[Card(7, "C")])
+    rig(game, idx=0, hand=[Card(3, "S")], pile=[Card(5, "C")])
     view = game.view_for("p0")
+    assert view["under_reverse"] is True
+    # Legacy alias preserved for one release.
     assert view["under_seven"] is True
 
 
@@ -606,7 +658,7 @@ def test_last_actions_finished_pid_set():
 
 def test_last_action_legacy_key_matches_newest_text():
     game = fresh_game()
-    rig(game, idx=0, hand=[Card(8, "S")], pile=[Card(5, "C")], deck=[])
+    rig(game, idx=0, hand=[Card(8, "S")], pile=[Card(4, "C")], deck=[])
     game.play("p0", Source.HAND, [0])
     state = game.public_state()
     assert state["last_action"] == state["last_actions"][-1]["text"]

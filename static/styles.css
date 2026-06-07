@@ -223,6 +223,27 @@ button:disabled {
   accent-color: var(--accent);
 }
 
+#config-panel select {
+  width: auto;
+  background: var(--bg);
+  color: var(--ink);
+  border: 2px solid var(--ink-dim);
+  border-radius: 6px;
+  padding: 0.3rem 0.55rem;
+  font: inherit;
+  accent-color: var(--accent);
+}
+
+#config-panel .rule-row {
+  flex-wrap: wrap;
+}
+
+#config-panel .rule-row small {
+  flex: 1 1 100%;
+  margin-left: 0;
+  font-weight: 400;
+}
+
 #seat-list .badge.host { background: var(--good); color: #04220a; }
 #seat-list .badge.bot { background: #87a8ff; color: #04122a; }
 #seat-list .badge.offline { background: #555; color: var(--ink); }
