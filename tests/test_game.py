@@ -111,33 +111,33 @@ def test_reset_legal_over_reverse_rank():
     assert game.top_rank() == 2
 
 
-def test_same_on_reverse_legal_by_default():
+@pytest.mark.parametrize("top_rank", [None, 5, 7, 13, 14])
+def test_reverse_rank_is_wild(top_rank):
+    """The reverse rank (default 5) is always legal regardless of pile top."""
     game = fresh_game()
-    rig(game, idx=0, hand=[Card(5, "H")], pile=[Card(5, "C")])
+    pile = [Card(top_rank, "C")] if top_rank is not None else []
+    rig(game, idx=0, hand=[Card(5, "H")], pile=pile)
     result = game.play("p0", Source.HAND, [0])
-    assert result.ok
+    assert result.ok, f"5 should be legal on pile_top={top_rank}"
     assert game.top_rank() == 5
-
-
-def test_same_on_reverse_illegal_when_toggle_off():
-    game = fresh_game(num_players=2)
-    game.config = GameConfig(reverse_rank=5, same_on_reverse=False)
-    rig(game, idx=0, hand=[Card(5, "H")], pile=[Card(5, "C")])
-    result = game.play("p0", Source.HAND, [0])
-    assert not result.ok
 
 
 @pytest.mark.parametrize(
     "reverse,top,attempt,expected_ok",
     [
         (4, 4, 3, True),  # under 4: 3 is legal
-        (4, 4, 5, False),  # 5 is not under 4 on a 4 (and same_on_reverse only affects same rank)
+        (4, 4, 5, False),  # on a 4 (under-4 active), 5 ≥ 4 fails under-rule and 5 isn't wild here
         (9, 9, 8, True),  # under 9: 8 is legal
         (9, 9, 10, True),  # 10 always legal (burn)
         (13, 13, 12, True),  # under K: Q is legal
-        (13, 13, 14, False),  # A on K when reverse is K → illegal
+        (
+            13,
+            13,
+            14,
+            False,
+        ),  # A on K (under-K active): A is not wild and ≥ rule doesn't bypass under-rule
         (14, 14, 13, True),  # under A: K is legal
-        (14, 14, 14, True),  # same_on_reverse default: A on A legal
+        (14, 14, 14, True),  # reverse rank itself is wild → A on A legal
     ],
 )
 def test_reverse_rank_configurable(reverse, top, attempt, expected_ok):
@@ -151,13 +151,20 @@ def test_reverse_rank_configurable(reverse, top, attempt, expected_ok):
 def test_reverse_rank_invalid_coerces_to_default():
     cfg = GameConfig.from_dict({"reverse_rank": 10})  # 10 is wild, not legal
     assert cfg.reverse_rank == DEFAULT_REVERSE_RANK
-    assert cfg.same_on_reverse is True
+    assert not hasattr(cfg, "same_on_reverse")
 
 
-def test_legacy_seven_on_seven_key_ignored():
-    cfg = GameConfig.from_dict({"seven_on_seven": False})
-    assert cfg.reverse_rank == DEFAULT_REVERSE_RANK
-    assert cfg.same_on_reverse is True
+def test_legacy_keys_ignored():
+    """Both legacy keys (seven_on_seven, same_on_reverse) are silently dropped."""
+    cfg = GameConfig.from_dict(
+        {
+            "reverse_rank": 7,
+            "same_on_reverse": False,
+            "seven_on_seven": False,
+        }
+    )
+    assert cfg.reverse_rank == 7
+    assert not hasattr(cfg, "same_on_reverse")
 
 
 def test_2_acts_as_reset_for_next_play():

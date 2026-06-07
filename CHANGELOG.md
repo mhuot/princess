@@ -10,13 +10,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Reverse-rank house rule now defaults to **5**, not 7. The rank itself is now configurable per room from the lobby's House rules panel (legal ranks: 3, 4, 5, 6, 7, 8, 9, J, Q, K, A — wild ranks 2 and 10 are excluded). [tunable-reverse-rank]
-- `GameConfig` gains `reverse_rank: int` (default 5) and `same_on_reverse: bool` (default true). The boolean replaces the previous `seven_on_seven` field.
-- Frontend rule indicator, hover tooltip, and "Special cards & house rules" legend now render the rank dynamically based on the room config.
+- `GameConfig` gains `reverse_rank: int` (default 5). [tunable-reverse-rank]
+- **The reverse rank is now a wild card**: always legal regardless of pile top, joining 2 (reset) and 10 (burn) as the third unconditional wild. The under-rule still fires when it lands. [reverse-rank-is-wild]
+- Frontend rule indicator, hover tooltip, and "Special cards & house rules" legend now render the rank dynamically based on the room config. The legend lists three wilds; the hover tooltip on a reverse-rank card reads `"Wild + Reverse — always legal; next play must be UNDER <R>."`. [reverse-rank-is-wild]
 
 ### Removed
 
-- `GameConfig.seven_on_seven` — replaced by `reverse_rank` + `same_on_reverse`. Legacy clients sending the old key are silently dropped (no error); they inherit the new defaults.
-- `princess.game.REVERSE_CARD` module constant — the value now lives in `GameConfig.reverse_rank`.
+- `GameConfig.seven_on_seven` — replaced by `reverse_rank`. [tunable-reverse-rank]
+- `GameConfig.same_on_reverse` — subsumed by the wild rule (reverse-on-reverse is always legal because the reverse rank is wild). The lobby's "Allow same rank on reverse" checkbox is gone. Legacy clients sending either key are silently dropped. [reverse-rank-is-wild]
+- `princess.game.REVERSE_CARD` module constant — the value now lives in `GameConfig.reverse_rank`. [tunable-reverse-rank]
 
 ## [0.1.0] — 2026-06-07
 

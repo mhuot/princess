@@ -14,12 +14,14 @@ context: |
   carries the standard Apache 2.0 header naming Mike Huot.
 
   House rules (engine defaults):
-  - The configured reverse rank (default 5) forces the next play to be UNDER it.
-    GameConfig.reverse_rank carries the integer rank (3–14 excluding the wild
-    ranks 2 and 10); same_on_reverse (default true) allows the rank itself to be
-    played onto itself.
-  - 2 is a wild reset (always legal; next play unrestricted).
-  - 10 burns the pile (always legal; same player plays again).
+  - Three wild ranks are always legal regardless of pile top:
+    * 2 — wild reset; next play unrestricted.
+    * 10 — burn; clears the pile; same player plays again.
+    * Reverse rank (default 5, configurable via GameConfig.reverse_rank) —
+      always legal AND forces the next play to be UNDER it.
+  - GameConfig.reverse_rank is an integer in {3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14}
+    (the two excluded values are the other wilds, 2 and 10). Invalid values
+    silently coerce to the default 5.
   - Four of the same rank in a row on the pile burns it (same player replays).
   - Pre-game swap phase: deal 3 face-down + 6 "choose"; pick 3 to lock face-up;
     the other 3 become the starting hand.
