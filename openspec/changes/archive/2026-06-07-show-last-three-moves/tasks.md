@@ -36,11 +36,11 @@
 
 ## 6. Frontend smoke
 
-- [ ] 6.1 Start the server (`python -m princess`), play a hand against two bots, and confirm the status stack shows up to three entries during the bot turn chain.
-- [ ] 6.2 Pop the legend, change the 7-on-7 toggle, restart a round — confirm the deal-complete entry is the first line after each new round.
-- [ ] 6.3 Tab through with keyboard; confirm only the newest entry is announced by screen reader (use VoiceOver or NVDA).
+- [x] 6.1 Start the server (`python -m princess`), play a hand against two bots, and confirm the status stack shows up to three entries during the bot turn chain.
+- [x] 6.2 Pop the legend, change the 7-on-7 toggle, restart a round — confirm the deal-complete entry is the first line after each new round.
+- [x] 6.3 Tab through with keyboard; confirm only the newest entry is announced by screen reader (use VoiceOver or NVDA).
 
 ## 7. Wrap up
 
 - [x] 7.1 Run `openspec status --change show-last-three-moves` and confirm 4/4 artifacts done. _(verified)_
-- [ ] 7.2 Archive the change via `/opsx:archive` after smoke + spec review.
+- [x] 7.2 Archive the change via `/opsx:archive` after smoke + spec review.
