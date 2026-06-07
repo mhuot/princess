@@ -390,16 +390,17 @@ button:disabled {
 .status-stack {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  margin: 0.75rem 0;
+  gap: 2px;
+  margin: 0.5rem 0;
 }
 
 .status-entry {
   background: var(--surface-2);
-  padding: 0.45rem 0.85rem;
+  padding: 0.25rem 0.85rem;
   border-left: 4px solid var(--ink-dim);
-  border-radius: 6px;
-  font-size: 0.95rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  line-height: 1.35;
   transition: opacity 0.18s ease;
 }
 
