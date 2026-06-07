@@ -46,23 +46,23 @@
 
 ## 8. Initial commit + push
 
-- [ ] 8.1 `git add` the relevant files (not `.venv/`, not `__pycache__/`).
-- [ ] 8.2 Initial commit: `git commit -m "Initial Princess Card Game release (v0.1.0)"`. (This is the one exception to the per-task rule — the repo's birth.)
+- [x] 8.1 `git add` the relevant files (not `.venv/`, not `__pycache__/`).
+- [x] 8.2 Initial commit: `git commit -m "Initial Princess Card Game release (v0.1.0)"`. (This is the one exception to the per-task rule — the repo's birth.)
 - [x] 8.3 `gh auth status` already shows `mhuot` as active (verified during propose).
-- [ ] 8.4 `gh repo create mhuot/princess --public --description "A climbing-card game with a 7-under house rule — FastAPI backend, vanilla JS frontend." --source=. --push`. Then `gh repo edit mhuot/princess --add-topic card-game --add-topic climbing-cards --add-topic fastapi --add-topic websockets --add-topic python --add-topic apache-2`.
-- [ ] 8.5 Confirm the push: `gh repo view mhuot/princess --web` (or just visit `https://github.com/mhuot/princess`).
+- [x] 8.4 `gh repo create mhuot/princess --public --description "A climbing-card game with a 7-under house rule — FastAPI backend, vanilla JS frontend." --source=. --push`. Then `gh repo edit mhuot/princess --add-topic card-game --add-topic climbing-cards --add-topic fastapi --add-topic websockets --add-topic python --add-topic apache-2`.
+- [x] 8.5 Confirm the push: `gh repo view mhuot/princess --web` (or just visit `https://github.com/mhuot/princess`).
 
 ## 9. CI shake-out
 
-- [ ] 9.1 Watch the first run of the three workflows. Expect at least one to fail (commonly `black --check` formatting drift).
-- [ ] 9.2 Fix anything that fails; commit per task; push.
-- [ ] 9.3 Once green, set branch protection in the GitHub UI requiring all three checks before merging into `main`.
+- [x] 9.1 Watch the first run of the three workflows. Expect at least one to fail (commonly `black --check` formatting drift).
+- [x] 9.2 Fix anything that fails; commit per task; push.
+- [x] 9.3 Once green, set branch protection in the GitHub UI requiring all three checks before merging into `main`.
 
 ## 10. Tag the release
 
-- [ ] 10.1 After CI is green on `main`, create the annotated tag: `git tag -a v0.1.0 -m "Initial Princess Card Game release"`.
-- [ ] 10.2 Push the tag: `git push origin v0.1.0`.
-- [ ] 10.3 Create a GitHub Release tied to the tag, body = the `## [0.1.0]` section from CHANGELOG.
+- [x] 10.1 After CI is green on `main`, create the annotated tag: `git tag -a v0.1.0 -m "Initial Princess Card Game release"`.
+- [x] 10.2 Push the tag: `git push origin v0.1.0`.
+- [x] 10.3 Create a GitHub Release tied to the tag, body = the `## [0.1.0]` section from CHANGELOG.
 
 ## 11. Smoke
 
@@ -73,5 +73,5 @@
 
 ## 12. Wrap up
 
-- [ ] 12.1 Run `openspec status --change establish-github-repo` and confirm 4/4 artifacts done.
+- [x] 12.1 Run `openspec status --change establish-github-repo` and confirm 4/4 artifacts done.
 - [ ] 12.2 Archive via `/opsx:archive establish-github-repo` once everything is on GitHub and CI is green.
