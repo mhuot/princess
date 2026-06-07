@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- End-of-round panel now hides the play surface completely. The `hidden` attribute is silently overridden by author CSS that sets `display: flex`/`block`, so paired `[hidden] { display: none !important; }` rules now enforce the attribute. The winner panel also surfaces the round-ending action (same 🔥/↑/👑 glyphs the status stack uses) so you can see the winning play directly under the winner's name. [game-over-clean-render]
 - Setup phase no longer carries selections across rematches or reconnects — `state.setupSelected` is reset on every transition INTO `phase: "setup"` (peer-triggered re-renders during setup keep your in-progress picks intact). The `.selected` style is also visually distinct from the wild-rank ★ badge: selected cards now wear a 4px accent border and a bottom-left ✓ glyph (opposite the wild ★ in the top-right). Choose-card buttons carry `aria-pressed` for screen-reader users. [setup-no-auto-preselect]
 
 ### Added

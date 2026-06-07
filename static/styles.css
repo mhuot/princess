@@ -415,6 +415,40 @@ button:disabled {
   margin: 0.5rem 0;
 }
 
+/* Enforce the `hidden` attribute against author display rules. UA's
+   `[hidden] { display: none; }` is lower-priority than our flex/block
+   rules, so without these overrides setting el.hidden = true silently
+   does nothing. !important is justified because the hidden attribute is
+   the project's hide/show contract. */
+#opponents[hidden],
+.pile-area[hidden],
+.legend[hidden],
+#status-stack[hidden],
+#setup-area[hidden],
+#you-area[hidden],
+#game-over[hidden],
+#game-header[hidden] {
+  display: none !important;
+}
+
+.winner-final-action {
+  margin: 0.5rem auto 1rem;
+  font-size: 1rem;
+  color: var(--ink-dim);
+  text-align: center;
+  max-width: 360px;
+}
+
+.winner-final-action::before {
+  content: "→ ";
+  color: var(--accent);
+  margin-right: 0.25rem;
+}
+
+.winner-final-action:empty::before {
+  content: none;
+}
+
 .status-entry {
   background: var(--surface-2);
   padding: 0.25rem 0.85rem;
