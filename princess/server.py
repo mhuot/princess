@@ -167,6 +167,63 @@ async def add_bot(code: str, body: AddBotBody) -> dict:
     return {"ok": True, "name": bot_name}
 
 
+class RemoveBotBody(BaseModel):
+    host_pid: str
+    bot_pid: str
+
+
+@app.post("/api/rooms/{code}/remove_bot")
+async def remove_bot(code: str, body: RemoveBotBody) -> dict:
+    room = REGISTRY.get(code)
+    if room is None:
+        raise HTTPException(404, "room not found")
+    if room.host_pid != body.host_pid:
+        raise HTTPException(403, "only the host can remove bots")
+    if room.game is not None:
+        raise HTTPException(409, "game already started")
+    seat = room.seat_by_pid(body.bot_pid)
+    if seat is None:
+        raise HTTPException(404, "seat not found")
+    if not seat.is_bot:
+        raise HTTPException(409, "cannot remove a human seat")
+    room.seats.remove(seat)
+    room_logger(room.code).info(
+        "bot removed name=%r pid=%s remaining=%d", seat.name, seat.pid, len(room.seats)
+    )
+    await room.broadcast_lobby()
+    return {"ok": True}
+
+
+class RenameBody(BaseModel):
+    pid: str
+    new_name: str = Field(min_length=1, max_length=20)
+
+
+@app.post("/api/rooms/{code}/rename")
+async def rename_seat(code: str, body: RenameBody) -> dict:
+    room = REGISTRY.get(code)
+    if room is None:
+        raise HTTPException(404, "room not found")
+    seat = room.seat_by_pid(body.pid)
+    if seat is None:
+        raise HTTPException(404, "seat not found")
+    old_name = seat.name
+    seat.name = body.new_name
+    if room.game is not None:
+        try:
+            room.game.player(body.pid).name = body.new_name
+        except KeyError:
+            pass
+    room_logger(room.code).info(
+        "seat renamed pid=%s old=%r new=%r", body.pid, old_name, body.new_name
+    )
+    if room.game is None:
+        await room.broadcast_lobby()
+    else:
+        await room.broadcast_state()
+    return {"ok": True, "name": body.new_name}
+
+
 @app.post("/api/rooms/{code}/config")
 async def update_config(code: str, body: ConfigBody) -> dict:
     room = REGISTRY.get(code)

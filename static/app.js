@@ -35,6 +35,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("rematch-btn").addEventListener("click", playRematch);
   $("new-game-btn").addEventListener("click", () => location.reload());
   $("quit-btn").addEventListener("click", quitGame);
+  $("rename-btn").addEventListener("click", promptRenameForGame);
   $("quit-dialog-cancel").addEventListener("click", () => $("quit-dialog").close());
   $("quit-dialog").addEventListener("close", () => {});
 
@@ -153,14 +154,32 @@ function renderLobby(room) {
   room.seats.forEach((seat) => {
     const li = document.createElement("li");
     const left = document.createElement("span");
+    left.className = "seat-name-cell";
     appendNameWithTag(left, seat.name, seat);
     li.appendChild(left);
     const right = document.createElement("span");
+    right.className = "seat-controls";
     if (seat.pid === room.host_pid) {
       right.appendChild(badge("host", "host"));
     }
     if (!seat.is_bot && !seat.connected) {
       right.appendChild(badge("offline", "offline"));
+    }
+    if (seat.pid === state.pid) {
+      const renameBtn = document.createElement("button");
+      renameBtn.type = "button";
+      renameBtn.className = "seat-action";
+      renameBtn.textContent = "Rename";
+      renameBtn.addEventListener("click", () => beginRenameInline(li, left, seat.name));
+      right.appendChild(renameBtn);
+    }
+    if (seat.is_bot && state.isHost) {
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "seat-action danger";
+      removeBtn.textContent = "Remove";
+      removeBtn.addEventListener("click", () => removeBot(seat.pid));
+      right.appendChild(removeBtn);
     }
     li.appendChild(right);
     list.appendChild(li);
@@ -201,6 +220,67 @@ async function saveConfig() {
       config,
     });
   } catch (e) { showError("lobby-error", e.message); }
+}
+
+async function removeBot(botPid) {
+  try {
+    await postJSON(`/api/rooms/${state.code}/remove_bot`, {
+      host_pid: state.pid,
+      bot_pid: botPid,
+    });
+  } catch (e) { showError("lobby-error", e.message); }
+}
+
+async function renameSelf(newName) {
+  const trimmed = (newName || "").trim();
+  if (!trimmed) return;
+  if (trimmed.length > 20) {
+    showError("lobby-error", "Name must be 20 characters or fewer.");
+    return;
+  }
+  try {
+    await postJSON(`/api/rooms/${state.code}/rename`, {
+      pid: state.pid,
+      new_name: trimmed,
+    });
+  } catch (e) { showError("lobby-error", e.message); }
+}
+
+function beginRenameInline(li, nameCell, currentName) {
+  const input = document.createElement("input");
+  input.type = "text";
+  input.value = currentName;
+  input.maxLength = 20;
+  input.className = "rename-input";
+  input.setAttribute("aria-label", "New name");
+  let settled = false;
+  const cancel = () => {
+    if (settled) return;
+    settled = true;
+    input.replaceWith(nameCell);
+  };
+  const submit = () => {
+    if (settled) return;
+    settled = true;
+    const value = input.value.trim();
+    input.replaceWith(nameCell);
+    if (value && value !== currentName) renameSelf(value);
+  };
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); submit(); }
+    if (e.key === "Escape") { e.preventDefault(); cancel(); }
+  });
+  input.addEventListener("blur", submit);
+  nameCell.replaceWith(input);
+  input.focus();
+  input.select();
+}
+
+function promptRenameForGame() {
+  const current = (state.view?.players || []).find((p) => p.pid === state.pid)?.name || "";
+  const next = window.prompt("New name?", current);
+  if (next == null) return;
+  renameSelf(next);
 }
 
 async function addBot() {
