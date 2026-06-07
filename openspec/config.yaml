@@ -40,23 +40,28 @@ context: |
 # agents pick them up automatically.
 rules:
   proposal:
-    - Include an "Impact" section that lists docs touched. When the change
+    - >-
+      Include an "Impact" section that lists docs touched. When the change
       modifies a user-visible surface (UI behavior, REST endpoint, config
       flag, log format), the same change MUST update README.md and the
       CHANGELOG.md "[Unreleased]" section.
-    - Reference the naming policy: never use the inspiring game's vulgar
+    - >-
+      Reference the naming policy — never use the inspiring game's vulgar
       name in anything that ships.
 
   tasks:
-    - Produce one git commit per task in tasks.md. Commit-message format:
-      `<change-name>: <task title>`.
-    - The first commit on the repo is the only exception (it ships everything
+    - >-
+      Produce one git commit per task in tasks.md. Commit-message format
+      is "<change-name>: <task title>".
+    - >-
+      The first commit on the repo is the only exception (it ships everything
       in v0.1.0 in one commit).
-    - All three CI workflows (tests, lint, openspec) MUST be green before
-      `/opsx:archive`. If CI fails after a push, fix it in a follow-up
+    - >-
+      All three CI workflows (tests, lint, openspec) MUST be green before
+      "/opsx:archive". If CI fails after a push, fix it in a follow-up
       commit on the same branch — never skip the gate.
 
   specs:
     - Use SHALL/MUST for normative requirements (avoid should/may).
     - Each requirement has at least one scenario.
-    - Scenarios use exactly 4 hashtags (`####`).
+    - "Scenarios use exactly 4 hashtags (####)."
