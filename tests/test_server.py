@@ -142,6 +142,142 @@ def test_config_ignores_unknown_keys():
     assert "fake_rule" not in cfg
 
 
+# --- Remove-bot / rename endpoint tests -------------------------------------
+
+
+def _bot_pid_of(room, name=None):
+    for s in room.seats:
+        if s.is_bot and (name is None or s.name == name):
+            return s.pid
+    return None
+
+
+def test_remove_bot_success():
+    client = _client()
+    code, host_pid = _bootstrap_lobby(client)
+    client.post(f"/api/rooms/{code}/bot", json={"host_pid": host_pid})
+    client.post(f"/api/rooms/{code}/bot", json={"host_pid": host_pid})
+    room = rooms_module.REGISTRY.get(code)
+    assert len(room.seats) == 3
+    target = _bot_pid_of(room)
+    res = client.post(
+        f"/api/rooms/{code}/remove_bot",
+        json={"host_pid": host_pid, "bot_pid": target},
+    )
+    assert res.status_code == 200
+    room = rooms_module.REGISTRY.get(code)
+    assert len(room.seats) == 2
+    assert all(s.pid != target for s in room.seats)
+
+
+def test_remove_bot_rejects_non_host():
+    client = _client()
+    code, host_pid = _bootstrap_lobby(client)
+    client.post(f"/api/rooms/{code}/bot", json={"host_pid": host_pid})
+    join = client.post(f"/api/rooms/{code}/join", json={"name": "Grace"}).json()
+    room = rooms_module.REGISTRY.get(code)
+    target = _bot_pid_of(room)
+    res = client.post(
+        f"/api/rooms/{code}/remove_bot",
+        json={"host_pid": join["pid"], "bot_pid": target},
+    )
+    assert res.status_code == 403
+
+
+def test_remove_bot_rejects_after_start():
+    client = _client()
+    code, host_pid = _bootstrap_lobby(client)
+    client.post(f"/api/rooms/{code}/bot", json={"host_pid": host_pid})
+    client.post(f"/api/rooms/{code}/start", json={"host_pid": host_pid})
+    room = rooms_module.REGISTRY.get(code)
+    target = _bot_pid_of(room)
+    res = client.post(
+        f"/api/rooms/{code}/remove_bot",
+        json={"host_pid": host_pid, "bot_pid": target},
+    )
+    assert res.status_code == 409
+
+
+def test_remove_bot_rejects_human_seat():
+    client = _client()
+    code, host_pid = _bootstrap_lobby(client)
+    join = client.post(f"/api/rooms/{code}/join", json={"name": "Grace"}).json()
+    res = client.post(
+        f"/api/rooms/{code}/remove_bot",
+        json={"host_pid": host_pid, "bot_pid": join["pid"]},
+    )
+    assert res.status_code == 409
+
+
+def test_remove_bot_unknown_bot_pid():
+    client = _client()
+    code, host_pid = _bootstrap_lobby(client)
+    res = client.post(
+        f"/api/rooms/{code}/remove_bot",
+        json={"host_pid": host_pid, "bot_pid": "definitely-not-real"},
+    )
+    assert res.status_code == 404
+
+
+def test_rename_in_lobby_updates_seat():
+    client = _client()
+    code, host_pid = _bootstrap_lobby(client, host_name="Ada")
+    res = client.post(
+        f"/api/rooms/{code}/rename",
+        json={"pid": host_pid, "new_name": "Alan"},
+    )
+    assert res.status_code == 200
+    assert res.json()["name"] == "Alan"
+    room = rooms_module.REGISTRY.get(code)
+    seat = room.seat_by_pid(host_pid)
+    assert seat.name == "Alan"
+
+
+def test_rename_mid_game_updates_seat_and_player():
+    client = _client()
+    code, host_pid = _bootstrap_lobby(client, host_name="Ada")
+    client.post(f"/api/rooms/{code}/bot", json={"host_pid": host_pid})
+    client.post(f"/api/rooms/{code}/start", json={"host_pid": host_pid})
+    res = client.post(
+        f"/api/rooms/{code}/rename",
+        json={"pid": host_pid, "new_name": "Alan"},
+    )
+    assert res.status_code == 200
+    room = rooms_module.REGISTRY.get(code)
+    assert room.seat_by_pid(host_pid).name == "Alan"
+    assert room.game.player(host_pid).name == "Alan"
+
+
+def test_rename_unknown_pid_returns_404():
+    client = _client()
+    code, _host = _bootstrap_lobby(client)
+    res = client.post(
+        f"/api/rooms/{code}/rename",
+        json={"pid": "ghost", "new_name": "Whoever"},
+    )
+    assert res.status_code == 404
+
+
+def test_rename_empty_name_returns_422():
+    client = _client()
+    code, host_pid = _bootstrap_lobby(client)
+    res = client.post(
+        f"/api/rooms/{code}/rename",
+        json={"pid": host_pid, "new_name": ""},
+    )
+    assert res.status_code == 422
+
+
+def test_rename_overlong_name_returns_422():
+    client = _client()
+    code, host_pid = _bootstrap_lobby(client)
+    res = client.post(
+        f"/api/rooms/{code}/rename",
+        json={"pid": host_pid, "new_name": "X" * 21},
+    )
+    assert res.status_code == 422
+
+
 def test_abort_returns_room_to_lobby():
     client = _client()
     code, host_pid = _bootstrap_lobby(client)

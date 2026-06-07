@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Host can **remove a bot seat** from the lobby via a per-row Remove button (`POST /api/rooms/{code}/remove_bot`). Lobby-only; host-only. [lobby-rename-and-remove-bots]
+- Any seated player can **rename themselves** at any time — inline input on their own row in the lobby, or a Rename button in the game header during a round (`POST /api/rooms/{code}/rename`). [lobby-rename-and-remove-bots]
+
 ### Changed
 
 - Reverse-rank house rule now defaults to **5**, not 7. The rank itself is now configurable per room from the lobby's House rules panel (legal ranks: 3, 4, 5, 6, 7, 8, 9, J, Q, K, A — wild ranks 2 and 10 are excluded). [tunable-reverse-rank]

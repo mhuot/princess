@@ -711,6 +711,51 @@ button:disabled {
   color: var(--accent);
 }
 
+.seat-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.seat-name-cell {
+  flex: 1;
+}
+
+.seat-action {
+  background: var(--surface-2);
+  color: var(--ink);
+  border: 1px solid var(--ink-dim);
+  font-size: 0.78rem;
+  padding: 0.18rem 0.55rem;
+  border-radius: 6px;
+}
+
+.seat-action:hover:not(:disabled) {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.seat-action.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.seat-action.danger:hover:not(:disabled) {
+  background: var(--danger);
+  color: #2b0606;
+}
+
+.rename-input {
+  font: inherit;
+  padding: 0.18rem 0.45rem;
+  border-radius: 4px;
+  border: 2px solid var(--accent);
+  background: var(--bg);
+  color: var(--ink);
+  width: auto;
+  max-width: 180px;
+}
+
 .quit-button {
   background: var(--surface-2);
   color: var(--ink);
