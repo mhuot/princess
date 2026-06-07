@@ -1,0 +1,36 @@
+name: openspec
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install openspec CLI
+        run: npm install -g @openspec/cli
+      - name: Validate main specs
+        run: openspec validate --specs --strict
+      - name: Validate every active change
+        shell: bash
+        run: |
+          set -euo pipefail
+          changes_dir="openspec/changes"
+          if [ ! -d "$changes_dir" ]; then
+            echo "no openspec/changes directory; nothing to validate"
+            exit 0
+          fi
+          for d in "$changes_dir"/*/; do
+            name="$(basename "$d")"
+            if [ "$name" = "archive" ]; then continue; fi
+            echo "::group::openspec validate $name --strict"
+            openspec validate "$name" --strict
+            echo "::endgroup::"
+          done

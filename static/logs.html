@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Princess Card Game — Logs</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+    <style>
+      #log-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+        margin-bottom: 0.75rem;
+      }
+      #log-toolbar label {
+        margin: 0;
+        display: flex;
+        gap: 0.4rem;
+        align-items: center;
+      }
+      #log-stream {
+        background: #04030a;
+        border: 1px solid var(--surface-2);
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+        font-size: 0.85rem;
+        line-height: 1.45;
+        max-height: 70vh;
+        overflow: auto;
+        white-space: pre-wrap;
+      }
+      .log-line {
+        padding: 0 0.25rem;
+      }
+      .log-line.lvl-ERROR { color: #ff8a8a; }
+      .log-line.lvl-WARN  { color: #ffd166; }
+      .log-line.lvl-INFO  { color: #d9d4ff; }
+      .log-line.lvl-DEBUG { color: #8da3c7; }
+      .log-line:hover { background: rgba(255, 209, 102, 0.08); }
+      #log-meta { color: var(--ink-dim); font-size: 0.85rem; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Logs</h1>
+      <p class="tagline">In-memory ring buffer — newest at the bottom. <a href="/">← back to game</a></p>
+    </header>
+
+    <main id="main">
+      <section>
+        <div id="log-toolbar">
+          <button type="button" id="refresh-btn">Refresh now</button>
+          <label>
+            <input type="checkbox" id="autorefresh" checked />
+            <span>Auto-refresh (2s)</span>
+          </label>
+          <label>
+            <input type="checkbox" id="autoscroll" checked />
+            <span>Auto-scroll</span>
+          </label>
+          <a id="download-btn" class="button-link" href="/api/logs/download" download>Download</a>
+          <button type="button" id="clear-btn">Clear buffer</button>
+          <span id="log-meta"></span>
+        </div>
+        <div id="log-stream" role="log" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <script>
+      const stream = document.getElementById("log-stream");
+      const meta = document.getElementById("log-meta");
+      let lastId = 0;
+      let timer = null;
+
+      function levelFromLine(line) {
+        const m = line.match(/\[(DEBUG|INFO|WARN|WARNING|ERROR|CRITICAL)/);
+        if (!m) return "INFO";
+        return m[1] === "WARNING" ? "WARN" : m[1];
+      }
+
+      async function tick() {
+        try {
+          const res = await fetch(`/api/logs?since=${lastId}&limit=500`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          for (const e of data.entries) {
+            const div = document.createElement("div");
+            div.className = "log-line lvl-" + levelFromLine(e.line);
+            div.textContent = e.line;
+            stream.appendChild(div);
+          }
+          if (data.entries.length) lastId = data.last_id;
+          // Cap rendered nodes to ~capacity*2 to keep the DOM trim.
+          const max = (data.capacity || 2000) + 200;
+          while (stream.childElementCount > max) stream.removeChild(stream.firstChild);
+          meta.textContent = `buffer cap ${data.capacity} · showing ${stream.childElementCount}`;
+          if (document.getElementById("autoscroll").checked) {
+            stream.scrollTop = stream.scrollHeight;
+          }
+        } catch (e) {
+          meta.textContent = "fetch failed: " + e.message;
+        }
+      }
+
+      function startTimer() {
+        stopTimer();
+        if (document.getElementById("autorefresh").checked) {
+          timer = setInterval(tick, 2000);
+        }
+      }
+      function stopTimer() {
+        if (timer) clearInterval(timer);
+        timer = null;
+      }
+
+      document.getElementById("refresh-btn").addEventListener("click", tick);
+      document.getElementById("autorefresh").addEventListener("change", startTimer);
+      document.getElementById("clear-btn").addEventListener("click", async () => {
+        if (!confirm("Clear the log buffer?")) return;
+        await fetch("/api/logs", { method: "DELETE" });
+        stream.innerHTML = "";
+        lastId = 0;
+        tick();
+      });
+
+      tick();
+      startTimer();
+    </script>
+  </body>
+</html>

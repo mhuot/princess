@@ -1,0 +1,62 @@
+schema: spec-driven
+
+# Project context provided to every propose / apply session.
+context: |
+  Princess Card Game — a climbing-cards game with a 7-under house rule.
+
+  Tech stack:
+  - Python 3.14, FastAPI, uvicorn, pydantic (>=2.11), pytest, pylint, black.
+  - Vanilla HTML / CSS / JavaScript (ES2020) frontend. No bundler, no framework.
+  - WebSockets via FastAPI/Starlette for real-time room state.
+  - In-memory room registry; no database, no persistent state.
+
+  License: Apache 2.0. Copyright holder: Mike Huot. Every Python source file
+  carries the standard Apache 2.0 header naming Mike Huot.
+
+  House rules (engine defaults):
+  - 7 forces the next play to be UNDER 7. (The "7-under" rule.)
+  - Optional: another 7 IS legal on a 7 (GameConfig.seven_on_seven = True by default).
+  - 2 is a wild reset (always legal; next play unrestricted).
+  - 10 burns the pile (always legal; same player plays again).
+  - Four of the same rank in a row on the pile burns it (same player replays).
+  - Pre-game swap phase: deal 3 face-down + 6 "choose"; pick 3 to lock face-up;
+    the other 3 become the starting hand.
+
+  Naming policy (NON-NEGOTIABLE):
+  - Always call the game "Princess".
+  - NEVER use the inspiring game's vulgar name in code, UI copy, comments,
+    commit messages, GitHub topics, descriptions, or any other public surface.
+  - Private design notes may reference the family of games (Shithead/Karma)
+    for category-level context; everything else stays Princess.
+
+  Accessibility: WCAG AAA color contrast (≥7:1 normal text). Skip link, ARIA
+  labels, keyboard focus rings, prefers-reduced-motion respect.
+
+  Distribution: GitHub repo at https://github.com/mhuot/princess. Three CI
+  workflows must pass on every PR: tests, lint, openspec.
+
+# Per-artifact rules. These are merged into the instructions returned by
+# `openspec instructions <artifact> --change <name> --json`, so future
+# agents pick them up automatically.
+rules:
+  proposal:
+    - Include an "Impact" section that lists docs touched. When the change
+      modifies a user-visible surface (UI behavior, REST endpoint, config
+      flag, log format), the same change MUST update README.md and the
+      CHANGELOG.md "[Unreleased]" section.
+    - Reference the naming policy: never use the inspiring game's vulgar
+      name in anything that ships.
+
+  tasks:
+    - Produce one git commit per task in tasks.md. Commit-message format:
+      `<change-name>: <task title>`.
+    - The first commit on the repo is the only exception (it ships everything
+      in v0.1.0 in one commit).
+    - All three CI workflows (tests, lint, openspec) MUST be green before
+      `/opsx:archive`. If CI fails after a push, fix it in a follow-up
+      commit on the same branch — never skip the gate.
+
+  specs:
+    - Use SHALL/MUST for normative requirements (avoid should/may).
+    - Each requirement has at least one scenario.
+    - Scenarios use exactly 4 hashtags (`####`).

@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Princess Card Game</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
+    <header>
+      <h1>Princess Card Game</h1>
+      <p class="tagline">After a 7 is played, the next card must be UNDER 7.</p>
+    </header>
+
+    <main id="main">
+      <section id="lobby" aria-labelledby="lobby-heading">
+        <h2 id="lobby-heading">Join the table</h2>
+        <form id="lobby-form">
+          <label for="player-name">Your name</label>
+          <input id="player-name" name="name" maxlength="20" required autocomplete="nickname" />
+
+          <div class="lobby-actions">
+            <button type="button" id="create-btn">Create new room</button>
+            <span class="or">or</span>
+            <label for="room-code">Room code</label>
+            <input
+              id="room-code"
+              name="code"
+              maxlength="4"
+              pattern="[A-Za-z0-9]{4}"
+              autocomplete="off"
+            />
+            <button type="button" id="join-btn">Join room</button>
+          </div>
+        </form>
+        <div id="lobby-error" role="alert" class="error-banner" hidden></div>
+      </section>
+
+      <section id="room-view" hidden aria-labelledby="room-heading">
+        <h2 id="room-heading">Room <span id="room-code-display"></span></h2>
+        <p>Share the code above with friends so they can join.</p>
+        <ul id="seat-list" aria-label="Players in this room"></ul>
+
+        <fieldset id="config-panel">
+          <legend>House rules</legend>
+          <label>
+            <input type="checkbox" id="cfg-seven-on-seven" />
+            <span>Allow playing a 7 on a 7</span>
+          </label>
+          <p id="config-readonly-note" class="muted" hidden>Only the host can change rules.</p>
+        </fieldset>
+
+        <div id="host-controls" hidden>
+          <button type="button" id="add-bot-btn">Add bot</button>
+          <button type="button" id="start-btn">Start game</button>
+        </div>
+        <p id="waiting-message" class="muted"></p>
+      </section>
+
+      <section id="game-view" hidden aria-labelledby="game-heading">
+        <h2 id="game-heading" class="visually-hidden">Game in progress</h2>
+
+        <div id="opponents" aria-label="Opponents"></div>
+
+        <div class="pile-area">
+          <div class="pile-stat">
+            <span class="stat-label">Deck</span>
+            <span class="stat-value" id="deck-count">0</span>
+          </div>
+          <div id="pile-card-wrap">
+            <div class="stat-label">Discard pile</div>
+            <div id="pile-card" class="card empty" aria-live="polite">empty</div>
+            <div id="pile-size" class="muted"></div>
+          </div>
+          <div class="pile-stat">
+            <span class="stat-label">Rule</span>
+            <span class="stat-value" id="rule-indicator">normal</span>
+          </div>
+        </div>
+
+        <div id="game-header" class="action-row">
+          <button type="button" id="quit-btn" class="quit-button">Quit & return to lobby</button>
+        </div>
+        <p id="status-line" aria-live="polite" class="status-line"></p>
+        <p id="action-error" role="alert" class="error-banner" hidden></p>
+
+        <details class="legend">
+          <summary>Special cards & house rules</summary>
+          <ul id="legend-list"></ul>
+        </details>
+
+        <div id="setup-area" hidden>
+          <h3>Build your face-up row</h3>
+          <p class="muted">
+            You have 3 face-down cards (hidden, blind plays later). Pick 3 of these 6
+            to place face-up on top of them. The other 3 become your starting hand.
+          </p>
+          <div id="setup-down-row" class="card-row" aria-label="Your face-down cards"></div>
+          <h4 id="choose-heading">Choose 3 cards for face-up</h4>
+          <div id="choose-row" class="card-row" role="list" aria-labelledby="choose-heading"></div>
+          <div class="action-row">
+            <button type="button" id="lock-in-btn" disabled>Lock in selection</button>
+            <span id="setup-status" class="muted"></span>
+          </div>
+        </div>
+
+        <div id="you-area" hidden>
+          <h3 id="hand-heading">Your cards</h3>
+          <p id="table-hint" class="muted">Face-up cards play when your hand is empty; face-down are blind plays after that.</p>
+          <div id="your-table" class="mini-row" role="list" aria-label="Your face-up and face-down cards"></div>
+          <p id="source-label" class="muted"></p>
+          <div class="action-row" id="hand-toolbar">
+            <button type="button" id="sort-hand-btn" aria-pressed="false">Sort hand</button>
+          </div>
+          <div id="hand" class="card-row" role="list" aria-labelledby="hand-heading"></div>
+
+          <div class="action-row">
+            <button type="button" id="play-btn" disabled>Play selected</button>
+            <button type="button" id="pickup-btn" disabled>Pick up pile</button>
+          </div>
+        </div>
+
+        <div id="game-over" hidden>
+          <div id="winner-banner">
+            <p class="kicker">Winner!</p>
+            <h3 id="winner-name"></h3>
+            <p id="winner-subtitle" class="muted"></p>
+          </div>
+          <ol id="results"></ol>
+          <div class="action-row">
+            <button type="button" id="rematch-btn">Play a rematch</button>
+            <button type="button" id="new-game-btn">Back to lobby</button>
+          </div>
+          <p id="rematch-note" class="muted" hidden>Waiting for the host to start a rematch…</p>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="quit-dialog" aria-labelledby="quit-dialog-title">
+      <h3 id="quit-dialog-title">Leave this round</h3>
+      <p id="quit-dialog-body" class="muted">Pick what should happen to your seat.</p>
+      <div id="quit-dialog-actions" class="action-row"></div>
+      <button type="button" id="quit-dialog-cancel" class="quit-cancel">Cancel</button>
+    </dialog>
+
+    <footer>
+      <p class="muted">Licensed under Apache 2.0. <a href="/logs" target="_blank" rel="noopener">View logs</a></p>
+    </footer>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

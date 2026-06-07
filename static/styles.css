@@ -1,0 +1,707 @@
+/*
+ * Princess Card Game styles.
+ * WCAG AAA contrast targets: text on background ≥ 7:1 for normal text.
+ * Primary palette: deep-purple background, near-white text, gold accents.
+ */
+
+:root {
+  --bg: #0a0612;
+  --surface: #1a1230;
+  --surface-2: #261845;
+  --ink: #f5f0ff;
+  --ink-dim: #c8b8e0;
+  --accent: #ffd166;
+  --accent-strong: #ffb347;
+  --danger: #ff6b6b;
+  --good: #7ee787;
+  --suit-red: #ff8a99;
+  --suit-black: #e6e0ff;
+  --focus: #ffd166;
+  --card-w: 64px;
+  --card-h: 92px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 17px;
+  line-height: 1.5;
+}
+
+a {
+  color: var(--accent);
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.skip-link {
+  position: absolute;
+  left: -1000px;
+  top: 0;
+  background: var(--accent);
+  color: var(--bg);
+  padding: 0.5rem 1rem;
+  font-weight: 700;
+  z-index: 100;
+}
+
+.skip-link:focus {
+  left: 0;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+header,
+footer {
+  padding: 1rem 1.5rem;
+}
+
+header h1 {
+  margin: 0 0 0.25rem;
+  color: var(--accent);
+  font-size: 1.75rem;
+}
+
+.tagline {
+  margin: 0;
+  color: var(--ink-dim);
+}
+
+main {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 1rem 1.5rem 4rem;
+}
+
+section {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+h2,
+h3 {
+  color: var(--accent);
+  margin-top: 0;
+}
+
+label {
+  display: block;
+  margin: 0.75rem 0 0.25rem;
+  font-weight: 600;
+}
+
+input,
+button {
+  font: inherit;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  padding: 0.55rem 0.9rem;
+}
+
+input {
+  background: var(--bg);
+  color: var(--ink);
+  border-color: var(--ink-dim);
+  width: 100%;
+  max-width: 320px;
+}
+
+button {
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+}
+
+button:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+
+button:disabled {
+  background: var(--surface-2);
+  color: var(--ink-dim);
+  cursor: not-allowed;
+}
+
+.lobby-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+  margin-top: 1rem;
+}
+
+.lobby-actions .or {
+  align-self: center;
+  color: var(--ink-dim);
+  font-style: italic;
+}
+
+.error-banner {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: #44141a;
+  color: #ffd0d0;
+  border: 2px solid var(--danger);
+  border-radius: 8px;
+}
+
+#seat-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 1rem;
+}
+
+#seat-list li {
+  padding: 0.4rem 0.75rem;
+  background: var(--surface-2);
+  border-radius: 6px;
+  margin-bottom: 0.4rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+#seat-list .badge {
+  font-size: 0.8rem;
+  background: var(--accent);
+  color: var(--bg);
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+#config-panel {
+  border: 2px solid var(--surface-2);
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  margin: 0.75rem 0;
+  background: var(--surface-2);
+}
+
+#config-panel legend {
+  padding: 0 0.4rem;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+#config-panel label {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.25rem 0;
+  font-weight: 500;
+}
+
+#config-panel input[type="checkbox"] {
+  width: auto;
+  transform: scale(1.2);
+  accent-color: var(--accent);
+}
+
+#seat-list .badge.host { background: var(--good); color: #04220a; }
+#seat-list .badge.bot { background: #87a8ff; color: #04122a; }
+#seat-list .badge.offline { background: #555; color: var(--ink); }
+
+#opponents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.opponent {
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 0.6rem 0.9rem;
+  flex: 1 1 180px;
+  border: 2px solid transparent;
+}
+
+.opponent.turn {
+  border-color: var(--accent);
+}
+
+.opponent.finished {
+  opacity: 0.6;
+}
+
+.opponent h4 {
+  margin: 0 0 0.4rem;
+  color: var(--accent);
+  font-size: 1rem;
+}
+
+.opponent .opp-line {
+  font-size: 0.9rem;
+  color: var(--ink-dim);
+  margin: 0.15rem 0;
+}
+
+.mini-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 0.35rem;
+}
+
+.mini-card,
+.mini-back {
+  width: 36px;
+  height: 50px;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ink);
+  color: var(--bg);
+  border: 2px solid transparent;
+  position: relative;
+}
+
+.mini-back {
+  background: linear-gradient(135deg, #6b3fa0, #3b1b66);
+  color: var(--accent);
+}
+
+.opponent .mini-card,
+.opponent .mini-back {
+  width: 28px;
+  height: 40px;
+  font-size: 0.7rem;
+  border: none;
+}
+
+#your-table.mini-row {
+  gap: 6px;
+  padding: 0.25rem 0;
+  min-height: 56px;
+}
+
+#your-table .mini-card.selectable,
+#your-table .mini-back.selectable {
+  cursor: pointer;
+}
+
+#your-table .mini-card.selectable:hover,
+#your-table .mini-back.selectable:hover {
+  outline: 2px solid var(--accent);
+}
+
+#your-table .mini-card.legal-hint {
+  box-shadow: 0 0 0 2px var(--good);
+}
+
+#your-table .mini-card.selected {
+  border-color: var(--accent);
+  transform: translateY(-4px);
+}
+
+#your-table .mini-card.disabled,
+#your-table .mini-back.disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+#your-table .mini-card.special::after {
+  content: "★";
+  position: absolute;
+  top: 1px;
+  right: 2px;
+  font-size: 0.55rem;
+  color: var(--accent-strong);
+}
+
+.pile-area {
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-2);
+  padding: 1rem;
+  border-radius: 10px;
+  margin-bottom: 1rem;
+}
+
+.pile-stat {
+  text-align: center;
+}
+
+.stat-label {
+  display: block;
+  color: var(--ink-dim);
+  font-size: 0.85rem;
+}
+
+.stat-value {
+  display: block;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+#pile-card {
+  width: var(--card-w);
+  height: var(--card-h);
+  font-size: 1.5rem;
+  margin: 0 auto;
+}
+
+#pile-card.empty {
+  font-size: 0.85rem;
+  background: transparent;
+  border: 2px dashed var(--ink-dim);
+  color: var(--ink-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#rule-indicator.alert {
+  color: var(--danger);
+}
+
+.status-line {
+  background: var(--surface-2);
+  padding: 0.6rem 1rem;
+  border-left: 4px solid var(--accent);
+  border-radius: 6px;
+  margin: 0.75rem 0;
+}
+
+.card-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: var(--card-h);
+  padding: 0.25rem 0;
+}
+
+.card {
+  width: var(--card-w);
+  height: var(--card-h);
+  border-radius: 8px;
+  background: var(--ink);
+  color: #111;
+  font-weight: 700;
+  font-size: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  border: 3px solid transparent;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.card[disabled],
+.card.disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.card.red {
+  color: #a3002b;
+}
+
+.card.black {
+  color: #11111b;
+}
+
+.card.selected {
+  border-color: var(--accent);
+  transform: translateY(-6px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+}
+
+.card.back {
+  background: linear-gradient(135deg, #6b3fa0, #3b1b66);
+  color: var(--accent);
+  font-size: 0.95rem;
+}
+
+.card.legal-hint {
+  box-shadow: 0 0 0 2px var(--good);
+}
+
+.action-row {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.75rem;
+}
+
+#play-btn {
+  background: var(--good);
+  color: #04220a;
+}
+
+#pickup-btn {
+  background: var(--danger);
+  color: #2b0606;
+}
+
+.muted {
+  color: var(--ink-dim);
+  font-size: 0.9rem;
+}
+
+#game-over {
+  background: linear-gradient(135deg, var(--surface-2), var(--surface));
+  border-radius: 14px;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  border: 3px solid var(--accent);
+  margin: 1rem 0;
+}
+
+#winner-banner {
+  margin-bottom: 1.25rem;
+}
+
+#winner-banner .kicker {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+#winner-name {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 2.4rem;
+  color: var(--accent);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+#winner-subtitle {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+#results {
+  margin: 0.5rem auto 1.25rem;
+  padding: 0;
+  list-style: none;
+  max-width: 360px;
+  text-align: left;
+}
+
+#results li {
+  margin: 0.25rem 0;
+  padding: 0.4rem 0.75rem;
+  background: var(--bg);
+  border-radius: 6px;
+  font-size: 1.05rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+#results li.princess {
+  color: var(--accent);
+  font-weight: 700;
+  outline: 2px solid var(--accent);
+}
+
+#results li.last-place {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+#game-over .action-row {
+  justify-content: center;
+}
+
+#rematch-btn {
+  background: var(--good);
+  color: #04220a;
+}
+
+@media (max-width: 600px) {
+  :root { --card-w: 54px; --card-h: 78px; }
+  .pile-area { gap: 1rem; }
+}
+
+#sort-hand-btn[aria-pressed="true"] {
+  background: var(--accent-strong);
+  outline: 2px solid var(--ink);
+}
+
+.card.special::after {
+  content: "★";
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 0.7rem;
+  color: var(--accent-strong);
+}
+
+.card { position: relative; }
+
+.mini-card.special {
+  outline: 1px solid var(--accent);
+}
+
+.legend {
+  background: var(--surface-2);
+  padding: 0.6rem 0.9rem;
+  border-radius: 8px;
+  margin: 0.75rem 0;
+}
+
+.legend summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.legend ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.legend li {
+  margin: 0.3rem 0;
+}
+
+#quit-dialog {
+  background: var(--surface);
+  color: var(--ink);
+  border: 3px solid var(--accent);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  max-width: 26rem;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+}
+
+#quit-dialog::backdrop {
+  background: rgba(8, 4, 18, 0.72);
+}
+
+#quit-dialog h3 {
+  margin: 0 0 0.4rem;
+  color: var(--accent);
+}
+
+#quit-dialog-actions {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
+#quit-dialog-actions button {
+  width: 100%;
+  text-align: left;
+  padding: 0.7rem 1rem;
+}
+
+#quit-dialog-actions .danger {
+  background: var(--danger);
+  color: #2b0606;
+}
+
+#quit-dialog-actions .takeover {
+  background: var(--good);
+  color: #04220a;
+}
+
+.quit-cancel {
+  background: var(--surface-2);
+  color: var(--ink);
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+.bot-tag {
+  margin-left: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--ink-dim);
+  font-style: italic;
+}
+
+.bot-tag.now {
+  color: var(--accent);
+}
+
+.quit-button {
+  background: var(--surface-2);
+  color: var(--ink);
+  border: 2px solid var(--danger);
+  font-size: 0.9rem;
+}
+
+.quit-button:hover:not(:disabled) {
+  background: var(--danger);
+  color: #2b0606;
+}
+
+#game-header {
+  justify-content: flex-end;
+  margin-bottom: 0.5rem;
+}
+
+.button-link {
+  display: inline-block;
+  padding: 0.55rem 0.9rem;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.button-link:hover { background: var(--accent-strong); }
+
+.legend-rank {
+  display: inline-block;
+  min-width: 28px;
+  padding: 0.05rem 0.4rem;
+  background: var(--accent);
+  color: var(--bg);
+  border-radius: 4px;
+  font-weight: 700;
+  text-align: center;
+  margin-right: 0.4rem;
+}
+
+#setup-down-row .card.back {
+  cursor: default;
+}
+
+#choose-row .card.locked {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card.selected { transform: none; }
+}
