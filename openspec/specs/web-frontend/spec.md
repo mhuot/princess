@@ -26,6 +26,15 @@ The landing page SHALL provide a name input, a "Create new room" button, and a s
 
 In the room view the frontend SHALL render: the room code, the list of seats with host/bot/offline badges, a "House rules" config panel, and (for the host only) Add-bot and Start-game buttons. Non-hosts SHALL see the config controls as `disabled` with a note that only the host can change them.
 
+Each seat row SHALL render zero, one, or two per-row controls:
+
+- A **Remove** button on **bot rows**, visible to the host only. Clicking it posts to `/api/rooms/<code>/remove_bot` with the bot's pid and the host's pid; on success the lobby re-renders and the seat is gone.
+- A **Rename** button on the **caller's own seat row** (whether host or non-host). Clicking it replaces the seat's name with an inline `<input type="text" maxlength="20">` pre-filled with the current name. Pressing Enter (or blurring the input with a non-empty value) submits to `/api/rooms/<code>/rename` with the caller's pid; Escape cancels. On success the lobby re-renders.
+
+Non-callers do NOT see the Rename button on someone else's row. Non-hosts do NOT see Remove on bot rows.
+
+The House rules panel SHALL contain the **Reverse rank** `<select>` (as previously specified). Changing it triggers `POST /api/rooms/<code>/config`.
+
 The House rules panel SHALL contain at minimum the **Reverse rank** `<select>` whose options list the legal reverse ranks (3, 4, 5, 6, 7, 8, 9, J, Q, K, A). The displayed text uses the human label (J/Q/K/A) but the submitted value is the integer rank (11/12/13/14). The panel SHALL NOT include a "same rank on reverse" control — the reverse rank is always legal as a wild.
 
 Changing the dropdown SHALL trigger a `POST /api/rooms/<code>/config` containing `{"reverse_rank": <int>}`. Non-hosts see the control disabled with the existing `#config-readonly-note`.
@@ -49,6 +58,26 @@ Changing the dropdown SHALL trigger a `POST /api/rooms/<code>/config` containing
 
 - **WHEN** the House rules panel is rendered
 - **THEN** there is no element with id `cfg-same-on-reverse`
+
+#### Scenario: Host sees Remove on bot rows
+
+- **WHEN** the host renders a lobby containing two bot seats
+- **THEN** each bot row carries a Remove button; the host's own row does not carry one
+
+#### Scenario: Non-host does NOT see Remove on bot rows
+
+- **WHEN** a non-host renders the same lobby
+- **THEN** no bot row carries a Remove button
+
+#### Scenario: Caller sees Rename on their own row only
+
+- **WHEN** a non-host renders a lobby with the host and two bots
+- **THEN** the non-host's own row carries a Rename button; the host's row and the bot rows do not
+
+#### Scenario: Rename input cancels on Escape
+
+- **WHEN** the user clicks Rename, edits the input, then presses Escape
+- **THEN** the input collapses back to the original name and no network call is made
 
 ### Requirement: Setup phase UI
 
@@ -200,6 +229,8 @@ During an in-progress game the frontend SHALL display a red-bordered "Quit & ret
 
 The modal SHALL be keyboard accessible: `Esc` closes without action, the first action button is auto-focused, and `Tab` cycles through the available actions.
 
+The game-view header SHALL also expose a small **Rename** button. Clicking it SHALL prompt the user (via a browser `prompt()` or an inline input) for a new name; on confirm the frontend SHALL POST `/api/rooms/<code>/rename` with the caller's pid and the new name. The broadcast state update reflects the new name to all opponents.
+
 #### Scenario: Non-host opens the modal
 
 - **WHEN** a non-host clicks Quit during a live game
@@ -224,6 +255,11 @@ The modal SHALL be keyboard accessible: `Esc` closes without action, the first a
 
 - **WHEN** the modal is open and the user presses Escape
 - **THEN** the modal closes and no network call is made
+
+#### Scenario: Mid-round rename succeeds
+
+- **WHEN** a player clicks the game-header Rename button and confirms a new valid name
+- **THEN** the browser POSTs `/api/rooms/<code>/rename`; the next broadcast state shows the new name in the opponent rows for the other players
 
 ### Requirement: WCAG AAA accessibility
 
