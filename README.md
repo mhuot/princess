@@ -1,6 +1,6 @@
 # 👑 Princess Card Game
 
-> _A climbing-card game with a 7-under house rule._
+> _A climbing-card game with a 5-under house rule (tunable per room)._
 > _Built in an afternoon. Plays for hours._
 
 ```
@@ -30,18 +30,20 @@ Open <http://127.0.0.1:8000>, enter a name, click **Create new room**, click **A
 
 > Need a screenshot? Add one to `docs/screenshot.png` — see [Contributing](CONTRIBUTING.md#screenshots).
 
-## The 7-under house rule
+## The reverse-rank house rule (default: 5-under)
 
 This is the one rule that makes Princess Princess.
 
-> **When the top of the discard pile is a 7, the next card must be UNDER 7.**
+> **When the top of the discard pile is the reverse rank, the next card must be UNDER it.**
 
-So `7 → 6`, `7 → 4`, `7 → 2` are all legal. `7 → 8` is not. Two specials still work:
+The default reverse rank is **5**, so `5 → 4`, `5 → 3`, `5 → 2` are all legal. `5 → 8` is not. Two specials always work regardless of the reverse rank:
 
 - **10** is always legal — it burns the pile and you go again.
 - **2** is always legal — it resets the pile to "anything goes."
 
-And by default, the **7 itself is legal on a 7** (toggleable in the house-rules panel).
+By default, the **reverse rank itself is legal on the reverse rank** (e.g. 5 on 5 is fine — toggleable in the house-rules panel).
+
+The reverse rank is tunable per room from the lobby's **House rules** panel: pick any rank from 3 through A (except the wilds 2 and 10). Want a 7-under variant? Set it to 7. Want a high-stakes A-under? Set it to A.
 
 ## Features
 

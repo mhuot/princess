@@ -38,15 +38,24 @@ FACE_UP_COUNT = 3
 FACE_DOWN_COUNT = 3
 WILD_RESET = 2
 BURN_CARD = 10
-REVERSE_CARD = 7
 LAST_ACTIONS_CAP = 3
+DEFAULT_REVERSE_RANK = 5
+# Legal reverse ranks exclude the wild cards (2 reset, 10 burn).
+LEGAL_REVERSE_RANKS = frozenset({3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14})
 
 
 @dataclass
 class GameConfig:
-    """Per-room rule toggles. Defaults match the house variant."""
+    """Per-room rule toggles. Defaults match the house variant.
 
-    seven_on_seven: bool = True  # may a 7 be played onto a 7?
+    The reverse rank is the rank that, when on top of the pile, forces the
+    next play to be UNDER it. Default 5 (the project's house rule). The
+    rank itself can also be played onto itself when ``same_on_reverse``
+    is true (the default).
+    """
+
+    reverse_rank: int = DEFAULT_REVERSE_RANK
+    same_on_reverse: bool = True
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -55,9 +64,18 @@ class GameConfig:
     def from_dict(cls, data: dict | None) -> "GameConfig":
         if not data:
             return cls()
-        fields = cls.__dataclass_fields__  # pylint: disable=no-member
-        valid = {k: bool(v) for k, v in data.items() if k in fields}
-        return cls(**valid)
+        kwargs: dict = {}
+        if "reverse_rank" in data:
+            try:
+                rank = int(data["reverse_rank"])
+            except (TypeError, ValueError):
+                rank = DEFAULT_REVERSE_RANK
+            if rank not in LEGAL_REVERSE_RANKS:
+                rank = DEFAULT_REVERSE_RANK
+            kwargs["reverse_rank"] = rank
+        if "same_on_reverse" in data:
+            kwargs["same_on_reverse"] = bool(data["same_on_reverse"])
+        return cls(**kwargs)
 
 
 class Source(str, Enum):
@@ -213,8 +231,8 @@ class Game:
     def top_rank(self) -> int | None:
         return self.pile[-1].rank if self.pile else None
 
-    def under_seven_active(self) -> bool:
-        return self.top_rank() == REVERSE_CARD
+    def under_reverse_active(self) -> bool:
+        return self.top_rank() == self.config.reverse_rank
 
     def is_legal_rank(self, rank: int) -> bool:
         if rank in (WILD_RESET, BURN_CARD):
@@ -222,10 +240,11 @@ class Game:
         top = self.top_rank()
         if top is None:
             return True
-        if self.under_seven_active():
-            if rank == REVERSE_CARD:
-                return self.config.seven_on_seven
-            return rank < REVERSE_CARD
+        if self.under_reverse_active():
+            reverse = self.config.reverse_rank
+            if rank == reverse:
+                return self.config.same_on_reverse
+            return rank < reverse
         return rank >= top
 
     def is_legal_play(self, cards: list[Card]) -> bool:
@@ -459,7 +478,10 @@ class Game:
             "current_pid": (
                 self.current_player.pid if not self.game_over and self.phase == "playing" else None
             ),
-            "under_seven": self.under_seven_active(),
+            "under_reverse": self.under_reverse_active(),
+            # Legacy alias retained for one release for old clients still
+            # checking `view.under_seven` — same value as `under_reverse`.
+            "under_seven": self.under_reverse_active(),
             "last_actions": [dict(entry) for entry in self.last_actions],
             # Legacy single-string alias — equals the newest entry's text, or "".
             "last_action": (self.last_actions[-1]["text"] if self.last_actions else ""),

@@ -10,7 +10,7 @@
     <a class="skip-link" href="#main">Skip to main content</a>
     <header>
       <h1>Princess Card Game</h1>
-      <p class="tagline">After a 7 is played, the next card must be UNDER 7.</p>
+      <p class="tagline">After a 5 is played, the next card must be UNDER 5 — and the reverse rank is tunable per room.</p>
     </header>
 
     <main id="main">
@@ -44,9 +44,26 @@
 
         <fieldset id="config-panel">
           <legend>House rules</legend>
-          <label>
-            <input type="checkbox" id="cfg-seven-on-seven" />
-            <span>Allow playing a 7 on a 7</span>
+          <label class="rule-row">
+            <span>Reverse rank</span>
+            <select id="cfg-reverse-rank" aria-label="Reverse rank">
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5" selected>5</option>
+              <option value="6">6</option>
+              <option value="7">7</option>
+              <option value="8">8</option>
+              <option value="9">9</option>
+              <option value="11">J</option>
+              <option value="12">Q</option>
+              <option value="13">K</option>
+              <option value="14">A</option>
+            </select>
+            <small class="muted">When the pile top is this rank, the next card must be UNDER it.</small>
+          </label>
+          <label class="rule-row">
+            <input type="checkbox" id="cfg-same-on-reverse" checked />
+            <span>Allow same rank on reverse (e.g. 5 on 5)</span>
           </label>
           <p id="config-readonly-note" class="muted" hidden>Only the host can change rules.</p>
         </fieldset>

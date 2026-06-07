@@ -80,15 +80,23 @@ def _bootstrap_lobby(client: TestClient, host_name: str = "Ada") -> tuple[str, s
     return create["code"], create["pid"]
 
 
-def test_config_updates_seven_on_seven():
+def test_config_updates_reverse_rank():
     client = _client()
     code, host_pid = _bootstrap_lobby(client)
     res = client.post(
         f"/api/rooms/{code}/config",
-        json={"host_pid": host_pid, "config": {"seven_on_seven": False}},
+        json={
+            "host_pid": host_pid,
+            "config": {"reverse_rank": 13, "same_on_reverse": False},
+        },
     )
     assert res.status_code == 200
-    assert res.json()["config"]["seven_on_seven"] is False
+    cfg = res.json()["config"]
+    assert cfg["reverse_rank"] == 13
+    assert cfg["same_on_reverse"] is False
+    room = rooms_module.REGISTRY.get(code)
+    assert room.config.reverse_rank == 13
+    assert room.config.same_on_reverse is False
 
 
 def test_config_rejected_for_non_host():
@@ -97,7 +105,7 @@ def test_config_rejected_for_non_host():
     join = client.post(f"/api/rooms/{code}/join", json={"name": "Grace"}).json()
     res = client.post(
         f"/api/rooms/{code}/config",
-        json={"host_pid": join["pid"], "config": {"seven_on_seven": False}},
+        json={"host_pid": join["pid"], "config": {"reverse_rank": 7}},
     )
     assert res.status_code == 403
 
@@ -109,7 +117,7 @@ def test_config_rejected_after_game_starts():
     client.post(f"/api/rooms/{code}/start", json={"host_pid": host_pid})
     res = client.post(
         f"/api/rooms/{code}/config",
-        json={"host_pid": host_pid, "config": {"seven_on_seven": False}},
+        json={"host_pid": host_pid, "config": {"reverse_rank": 7}},
     )
     assert res.status_code == 409
 
@@ -119,11 +127,21 @@ def test_config_ignores_unknown_keys():
     code, host_pid = _bootstrap_lobby(client)
     res = client.post(
         f"/api/rooms/{code}/config",
-        json={"host_pid": host_pid, "config": {"seven_on_seven": False, "fake_rule": True}},
+        json={
+            "host_pid": host_pid,
+            "config": {
+                "reverse_rank": 9,
+                "same_on_reverse": True,
+                "seven_on_seven": False,  # legacy key — silently dropped
+                "fake_rule": True,
+            },
+        },
     )
     assert res.status_code == 200
     cfg = res.json()["config"]
-    assert cfg["seven_on_seven"] is False
+    assert cfg["reverse_rank"] == 9
+    assert cfg["same_on_reverse"] is True
+    assert "seven_on_seven" not in cfg
     assert "fake_rule" not in cfg
 
 
