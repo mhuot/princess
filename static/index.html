@@ -35,6 +35,13 @@
           </div>
         </form>
         <div id="lobby-error" role="alert" class="error-banner" hidden></div>
+        <section id="focused-join" hidden>
+          <h2 id="focused-heading">Join room <span id="focused-code"></span></h2>
+          <label for="focused-name">Your name</label>
+          <input id="focused-name" name="name" maxlength="20" autocomplete="nickname" />
+          <button type="button" id="focused-join-btn" disabled>Join room</button>
+          <div id="focused-error" role="alert" class="error-banner" hidden></div>
+        </section>
       </section>
 
       <section id="room-view" hidden aria-labelledby="room-heading">

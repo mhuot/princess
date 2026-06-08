@@ -91,9 +91,104 @@ document.addEventListener("DOMContentLoaded", () => {
     location.href = "/";
   });
 
+  $("m-focused-name").addEventListener("input", () => {
+    $("m-focused-join-btn").disabled = !$("m-focused-name").value.trim();
+  });
+  $("m-focused-join-btn").addEventListener("click", focusedJoinSubmit);
+
   const m = location.pathname.match(/^\/m\/([A-Z0-9]{4})$/i);
-  if (m) $("m-code").value = m[1].toUpperCase();
+  if (m) {
+    $("m-code").value = m[1].toUpperCase();
+    autoJoinFromUrl(m[1].toUpperCase());
+  }
 });
+
+// --- Storage helpers -------------------------------------------------------
+
+function savePreferredName(name) {
+  try { localStorage.setItem("princess_name", name); } catch { /* best-effort */ }
+}
+
+function loadPreferredName() {
+  try { return localStorage.getItem("princess_name") || ""; } catch { return ""; }
+}
+
+function saveSession(code, pid, name) {
+  try {
+    sessionStorage.setItem(
+      "princess_session",
+      JSON.stringify({ code, pid, name })
+    );
+  } catch { /* best-effort */ }
+}
+
+function loadSession() {
+  try {
+    const raw = sessionStorage.getItem("princess_session");
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function clearSession() {
+  try { sessionStorage.removeItem("princess_session"); } catch { /* ignore */ }
+}
+
+async function joinRoomBy(code, name) {
+  const r = await postJSON(`/api/rooms/${code}/join`, { name });
+  state.code = code;
+  state.pid = r.pid;
+  state.isHost = false;
+  savePreferredName(name);
+  saveSession(code, r.pid, name);
+  enterRoom();
+}
+
+async function autoJoinFromUrl(urlCode) {
+  // Tier 1: session sentinel.
+  const sentinel = loadSession();
+  if (sentinel && sentinel.code === urlCode && sentinel.pid) {
+    state.code = sentinel.code;
+    state.pid = sentinel.pid;
+    state.isHost = false;
+    enterRoom();
+    return;
+  }
+
+  // Tier 2: saved name.
+  const savedName = loadPreferredName();
+  if (savedName) {
+    try {
+      await joinRoomBy(urlCode, savedName);
+      return;
+    } catch (e) {
+      showError(e.message);
+      return;
+    }
+  }
+
+  // Tier 3: focused view.
+  $("m-focused-code").textContent = urlCode;
+  $("m-focused-join-btn").textContent = `Join room ${urlCode}`;
+  $("m-focused-join-btn").disabled = true;
+  $("m-landing").hidden = true;
+  $("m-focused-join").hidden = false;
+  state._autoJoinCode = urlCode;
+  $("m-focused-name").focus();
+}
+
+async function focusedJoinSubmit() {
+  const name = $("m-focused-name").value.trim();
+  if (!name || !state._autoJoinCode) return;
+  try {
+    await joinRoomBy(state._autoJoinCode, name);
+  } catch (e) {
+    $("m-focused-join").hidden = true;
+    $("m-landing").hidden = false;
+    $("m-code").value = state._autoJoinCode;
+    $("m-name").value = name;
+    showError(e.message);
+  }
+}
 
 // --- Networking helpers ----------------------------------------------------
 
@@ -123,6 +218,8 @@ async function createRoom() {
   try {
     const r = await postJSON("/api/rooms", { name });
     state.code = r.code; state.pid = r.pid; state.isHost = true;
+    savePreferredName(name);
+    saveSession(r.code, r.pid, name);
     enterRoom();
   } catch (e) { showError(e.message); }
 }
@@ -133,9 +230,7 @@ async function joinRoom() {
   if (!name) return showError("Enter your name first.");
   if (!code) return showError("Enter a 4-character room code.");
   try {
-    const r = await postJSON(`/api/rooms/${code}/join`, { name });
-    state.code = code; state.pid = r.pid; state.isHost = false;
-    enterRoom();
+    await joinRoomBy(code, name);
   } catch (e) { showError(e.message); }
 }
 
@@ -151,8 +246,18 @@ function enterRoom() {
 function openSocket() {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   state.socket = new WebSocket(`${proto}://${location.host}/ws/${state.code}/${state.pid}`);
-  state.socket.addEventListener("message", (e) => handleMessage(JSON.parse(e.data)));
+  state._wsGotMessage = false;
+  state.socket.addEventListener("message", (e) => {
+    state._wsGotMessage = true;
+    handleMessage(JSON.parse(e.data));
+  });
   state.socket.addEventListener("close", () => {
+    if (!state._wsGotMessage) {
+      // Tier-1 sentinel reconnect failed (unknown pid).
+      clearSession();
+      location.reload();
+      return;
+    }
     $("m-waiting").textContent = "Disconnected. Refresh to reconnect.";
   });
 }

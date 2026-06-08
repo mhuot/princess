@@ -31,6 +31,13 @@
           <p id="m-lobby-error" class="m-error" role="alert" hidden></p>
         </section>
 
+        <section id="m-focused-join" hidden>
+          <h2 id="m-focused-heading">Join room <span id="m-focused-code"></span></h2>
+          <label for="m-focused-name">Your name</label>
+          <input id="m-focused-name" name="name" maxlength="20" autocomplete="nickname" />
+          <button type="button" id="m-focused-join-btn" class="m-primary" disabled>Join room</button>
+        </section>
+
         <section id="m-room" hidden>
           <p class="m-room-line">Room <strong id="m-room-code"></strong> <button type="button" id="m-share-btn-lobby" class="m-icon" aria-label="Share room link">↗</button></p>
           <p id="m-reverse-rank-readout" class="m-muted"></p>

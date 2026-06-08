@@ -355,6 +355,269 @@ def section_scroll_hint(browser: Browser) -> Section:
     return section
 
 
+def section_ua_redirect(browser: Browser) -> Section:
+    """Verify GET / redirects mobile UAs to /m and stays put for desktop."""
+    section = Section("mobile-ua-redirect")
+
+    # 1. Mobile UA on / lands on /m.
+    ctx = make_mobile_context(browser)
+    page = ctx.new_page()
+    page.goto(BASE + "/")
+    page.wait_for_load_state("domcontentloaded")
+    landed_url = page.url
+    landed_title = page.title()
+    shot = shoot(page, "redirect-mobile-to-m")
+    section.checks.append(CheckResult(
+        "Mobile UA hitting / lands on /m",
+        passed=landed_url.rstrip("/").endswith("/m") and "mobile" in landed_title.lower(),
+        notes=f"url={landed_url!r} title={landed_title!r}",
+        screenshot=shot,
+    ))
+    ctx.close()
+
+    # 2. Mobile UA on /room/{code} lands on /m/{code}.
+    ctx = make_mobile_context(browser)
+    page = ctx.new_page()
+    page.goto(BASE + "/room/AB12")
+    page.wait_for_load_state("domcontentloaded")
+    deep_url = page.url
+    section.checks.append(CheckResult(
+        "Mobile UA hitting /room/AB12 lands on /m/AB12",
+        passed=deep_url.endswith("/m/AB12"),
+        notes=f"url={deep_url!r}",
+    ))
+    ctx.close()
+
+    # 3. Desktop UA on / stays on /.
+    ctx = make_desktop_context(browser)
+    page = ctx.new_page()
+    page.goto(BASE + "/")
+    page.wait_for_load_state("domcontentloaded")
+    desktop_url = page.url
+    desktop_title = page.title()
+    shot = shoot(page, "redirect-desktop-stays")
+    section.checks.append(CheckResult(
+        "Desktop UA hitting / stays on /",
+        passed=desktop_url.rstrip("/") == BASE
+        and "princess card game" in desktop_title.lower(),
+        notes=f"url={desktop_url!r} title={desktop_title!r}",
+        screenshot=shot,
+    ))
+    ctx.close()
+
+    # 4. ?desktop=1 override on mobile UA serves desktop UI.
+    ctx = make_mobile_context(browser)
+    page = ctx.new_page()
+    page.goto(BASE + "/?desktop=1")
+    page.wait_for_load_state("domcontentloaded")
+    override_url = page.url
+    override_title = page.title()
+    shot = shoot(page, "redirect-desktop-query-override")
+    section.checks.append(CheckResult(
+        "?desktop=1 keeps mobile UA on the desktop UI",
+        passed="princess card game" in override_title.lower()
+        and "?desktop=1" in override_url,
+        notes=f"url={override_url!r} title={override_title!r}",
+        screenshot=shot,
+    ))
+    ctx.close()
+
+    # 5. The "View desktop site" link on /m sets the cookie + navigates to /.
+    ctx = make_mobile_context(browser)
+    page = ctx.new_page()
+    page.goto(BASE + "/m")
+    page.wait_for_load_state("domcontentloaded")
+    link_visible = page.locator("#m-switch-to-desktop").is_visible()
+    page.click("#m-switch-to-desktop")
+    page.wait_for_load_state("domcontentloaded")
+    after_url = page.url
+    after_title = page.title()
+    cookies = {c["name"]: c["value"] for c in ctx.cookies()}
+    cookie_ok = cookies.get("princess_prefer_desktop") == "1"
+    landed_on_desktop = "princess card game" in after_title.lower()
+    shot = shoot(page, "redirect-mobile-link-to-desktop")
+    section.checks.append(CheckResult(
+        "Mobile lobby has 'View desktop site' link",
+        passed=link_visible,
+        notes=f"#m-switch-to-desktop visible={link_visible}",
+        screenshot=shot,
+    ))
+    section.checks.append(CheckResult(
+        "Tapping 'View desktop site' sets cookie + lands on /",
+        passed=cookie_ok and landed_on_desktop and after_url.rstrip("/") == BASE,
+        notes=(
+            f"cookie={cookies.get('princess_prefer_desktop')!r} "
+            f"url={after_url!r} title={after_title!r}"
+        ),
+    ))
+
+    # 6. With cookie set, navigating to / from mobile UA stays on /.
+    page.goto(BASE + "/")
+    page.wait_for_load_state("domcontentloaded")
+    cookie_persists_url = page.url
+    cookie_persists_title = page.title()
+    section.checks.append(CheckResult(
+        "Cookie keeps mobile UA on / on subsequent visits",
+        passed="princess card game" in cookie_persists_title.lower(),
+        notes=f"url={cookie_persists_url!r} title={cookie_persists_title!r}",
+    ))
+    ctx.close()
+
+    # 7. The "Mobile site" link on / clears the cookie + navigates to /m.
+    ctx = make_desktop_context(browser)
+    page = ctx.new_page()
+    # Pre-set the cookie so we can confirm it gets cleared.
+    ctx.add_cookies([{
+        "name": "princess_prefer_desktop", "value": "1",
+        "url": BASE,
+    }])
+    page.goto(BASE + "/")
+    page.wait_for_load_state("domcontentloaded")
+    link_present = page.locator("#switch-to-mobile").is_visible()
+    page.click("#switch-to-mobile")
+    page.wait_for_load_state("domcontentloaded")
+    final_url = page.url
+    final_title = page.title()
+    final_cookies = {c["name"]: c["value"] for c in ctx.cookies()}
+    cookie_cleared = "princess_prefer_desktop" not in final_cookies or \
+        final_cookies.get("princess_prefer_desktop") == ""
+    section.checks.append(CheckResult(
+        "Desktop footer has 'Mobile site' link",
+        passed=link_present,
+        notes=f"#switch-to-mobile visible={link_present}",
+    ))
+    section.checks.append(CheckResult(
+        "Tapping 'Mobile site' clears cookie + lands on /m",
+        passed=final_url.rstrip("/").endswith("/m")
+        and "mobile" in final_title.lower()
+        and cookie_cleared,
+        notes=(
+            f"cookie_cleared={cookie_cleared} url={final_url!r} "
+            f"title={final_title!r} cookies={final_cookies!r}"
+        ),
+    ))
+    ctx.close()
+
+    return section
+
+
+def section_deep_link_auto_join(browser: Browser) -> Section:
+    """Verify /m/<code> auto-join behavior across the three tiers."""
+    section = Section("deep-link-auto-join")
+
+    # Set up: create a room first to get a valid code.
+    setup_ctx = make_mobile_context(browser)
+    setup_page = setup_ctx.new_page()
+    code = create_room_mobile(setup_page, "Host")
+    setup_ctx.close()
+
+    # Tier 3: no saved name → focused view appears.
+    ctx = make_mobile_context(browser)
+    page = ctx.new_page()
+    page.goto(f"{BASE}/m/{code}")
+    page.wait_for_load_state("domcontentloaded")
+    page.wait_for_timeout(400)
+    focused_visible = page.locator("#m-focused-join").is_visible()
+    landing_hidden = page.locator("#m-landing").get_attribute("hidden") is not None
+    btn_text = page.locator("#m-focused-join-btn").inner_text().strip()
+    btn_disabled = page.locator("#m-focused-join-btn").is_disabled()
+    shot = shoot(page, "auto-join-focused-view")
+    section.checks.append(CheckResult(
+        "Tier 3: focused view appears with no saved name",
+        passed=focused_visible and landing_hidden and btn_text == f"Join room {code}",
+        notes=f"focused_visible={focused_visible} landing_hidden={landing_hidden} btn={btn_text!r}",
+        screenshot=shot,
+    ))
+    section.checks.append(CheckResult(
+        "Join button disabled on empty input",
+        passed=btn_disabled,
+        notes=f"button.disabled={btn_disabled}",
+    ))
+
+    # Empty-name guard: type whitespace → button stays disabled.
+    page.fill("#m-focused-name", "   ")
+    page.wait_for_timeout(120)
+    btn_disabled_whitespace = page.locator("#m-focused-join-btn").is_disabled()
+    section.checks.append(CheckResult(
+        "Whitespace-only input keeps button disabled",
+        passed=btn_disabled_whitespace,
+        notes=f"button.disabled={btn_disabled_whitespace}",
+    ))
+
+    # Type a real name → button enables.
+    page.fill("#m-focused-name", "  Pat  ")  # whitespace around the name
+    page.wait_for_timeout(120)
+    btn_enabled = not page.locator("#m-focused-join-btn").is_disabled()
+    section.checks.append(CheckResult(
+        "Non-empty input enables the button",
+        passed=btn_enabled,
+        notes=f"button.disabled={not btn_enabled}",
+    ))
+
+    # Click → name should trim, save, and enter the room.
+    page.click("#m-focused-join-btn")
+    page.wait_for_selector("#m-room:not([hidden])", timeout=4000)
+    saved_name = page.evaluate("localStorage.getItem('princess_name')")
+    section.checks.append(CheckResult(
+        "Tier 3 submit trims and saves name; enters room",
+        passed=saved_name == "Pat"
+        and page.locator("#m-room").is_visible(),
+        notes=f"saved_name={saved_name!r} room_visible=True",
+    ))
+    ctx.close()
+
+    # Tier 2: saved name → direct auto-join, no focused view.
+    ctx = make_mobile_context(browser)
+    page = ctx.new_page()
+    # Seed localStorage via the storage state by navigating to set it.
+    page.goto(BASE + "/m")
+    page.evaluate("localStorage.setItem('princess_name', 'Mike')")
+    page.goto(f"{BASE}/m/{code}")
+    page.wait_for_selector("#m-room:not([hidden])", timeout=6000)
+    landed_in_room = page.locator("#m-room").is_visible()
+    focused_shown = page.locator("#m-focused-join").is_visible()
+    shot = shoot(page, "auto-join-tier2-saved-name")
+    section.checks.append(CheckResult(
+        "Tier 2: saved name auto-joins without focused view",
+        passed=landed_in_room and not focused_shown,
+        notes=f"landed_in_room={landed_in_room} focused_shown={focused_shown}",
+        screenshot=shot,
+    ))
+    # Sentinel should be set after join.
+    sentinel = page.evaluate("sessionStorage.getItem('princess_session')")
+    sentinel_ok = sentinel and code in sentinel
+    section.checks.append(CheckResult(
+        "Session sentinel persisted after join",
+        passed=bool(sentinel_ok),
+        notes=f"sentinel={sentinel!r}",
+    ))
+    ctx.close()
+
+    # Failure fallback: unknown code → falls back to landing with error.
+    ctx = make_mobile_context(browser)
+    page = ctx.new_page()
+    page.goto(BASE + "/m")
+    page.evaluate("localStorage.setItem('princess_name', 'Mike')")
+    page.goto(f"{BASE}/m/ZZZZ")
+    page.wait_for_timeout(800)
+    landing_back = page.locator("#m-landing").is_visible()
+    code_input = page.locator("#m-code").input_value()
+    error_visible = page.locator("#m-lobby-error").is_visible()
+    shot = shoot(page, "auto-join-failure-fallback")
+    section.checks.append(CheckResult(
+        "Failure (404) falls back to landing with code prefilled + error",
+        passed=landing_back and code_input == "ZZZZ" and error_visible,
+        notes=(
+            f"landing_back={landing_back} code_input={code_input!r} "
+            f"error_visible={error_visible}"
+        ),
+        screenshot=shot,
+    ))
+    ctx.close()
+
+    return section
+
+
 def section_supporting_visuals(browser: Browser) -> Section:
     """Snapshot the mobile UI to visually confirm opponent face-up + wrapped hand."""
     section = Section("supporting visuals")
@@ -431,6 +694,8 @@ def main() -> int:
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=True)
         try:
+            sections.append(section_ua_redirect(browser))
+            sections.append(section_deep_link_auto_join(browser))
             sections.append(section_share_room_link(browser))
             sections.append(section_discard_count(browser))
             sections.append(section_scroll_hint(browser))
