@@ -1,0 +1,14 @@
+services:
+  princess:
+    build: .
+    container_name: princess
+    restart: unless-stopped
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8000
+    networks:
+      - nginx-proxy-network
+
+networks:
+  nginx-proxy-network:
+    external: true

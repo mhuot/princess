@@ -1,18 +1,18 @@
 ## 1. Pre-conditions
 
-- [ ] 1.1 Confirm `docker` and `docker compose` work for the deploying user. Confirm membership in the `docker` group.
-- [ ] 1.2 Confirm `nginx-proxy-network` exists: `docker network inspect nginx-proxy-network >/dev/null`.
-- [ ] 1.3 Confirm nginx-director's wildcard cert covers the chosen deployment subdomain (operator runbook holds the specific value).
-- [ ] 1.4 Confirm port 8000 is free on `nginx-proxy-network` — `docker ps --filter network=nginx-proxy-network --format '{{.Names}} {{.Ports}}' | grep ':8000'` should be empty.
-- [ ] 1.5 Confirm `gh auth status` shows `mhuot` and can hit `mhuot/princess`.
+- [x] 1.1 Confirm `docker` and `docker compose` work for the deploying user. Confirm membership in the `docker` group.
+- [x] 1.2 Confirm `nginx-proxy-network` exists: `docker network inspect nginx-proxy-network >/dev/null`.
+- [x] 1.3 Confirm nginx-director's wildcard cert covers the chosen deployment subdomain (operator runbook holds the specific value).
+- [x] 1.4 Confirm port 8000 is free on `nginx-proxy-network` — `docker ps --filter network=nginx-proxy-network --format '{{.Names}} {{.Ports}}' | grep ':8000'` should be empty.
+- [x] 1.5 Confirm `gh auth status` shows `mhuot` and can hit `mhuot/princess`.
 
 ## 2. Containerize Princess
 
-- [ ] 2.1 Write `Dockerfile` — `FROM python:3.14-slim`, set `WORKDIR /app`, `COPY requirements.txt .`, `RUN pip install --no-cache-dir -r requirements.txt`, `COPY princess/ princess/`, `COPY static/ static/`, `EXPOSE 8000`, `ENV HOST=0.0.0.0 PORT=8000`, `CMD ["python", "-m", "princess"]`. Add a non-root `USER` (`useradd princess && USER princess`) for hardening.
-- [ ] 2.2 Write `.dockerignore` excluding `.git`, `.github`, `.venv`, `__pycache__`, `*.pyc`, `tests`, `openspec`, `smoke`, `scripts`, `*.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `NOTICE`, `LICENSE`, `pyproject.toml`, `requirements-dev.txt`, `Dockerfile`, `.dockerignore`, `docker-compose.yml`, `actions-runner`.
-- [ ] 2.3 Write `docker-compose.yml` — service `princess`, `build: .`, `container_name: princess`, `restart: unless-stopped`, `networks: [nginx-proxy-network]`, env `HOST=0.0.0.0`, `PORT=8000`. Top-level `networks: nginx-proxy-network: { external: true }`.
-- [ ] 2.4 Local build smoke: `docker compose build`. Verify the resulting image runs as a non-root UID and does NOT contain pytest/pylint/black.
-- [ ] 2.5 Commit: `deploy-via-nginx-director: Add Dockerfile and compose for Princess container`
+- [x] 2.1 Write `Dockerfile` — `FROM python:3.14-slim`, set `WORKDIR /app`, `COPY requirements.txt .`, `RUN pip install --no-cache-dir -r requirements.txt`, `COPY princess/ princess/`, `COPY static/ static/`, `EXPOSE 8000`, `ENV HOST=0.0.0.0 PORT=8000`, `CMD ["python", "-m", "princess"]`. Add a non-root `USER` (`useradd princess && USER princess`) for hardening.
+- [x] 2.2 Write `.dockerignore` excluding `.git`, `.github`, `.venv`, `__pycache__`, `*.pyc`, `tests`, `openspec`, `smoke`, `scripts`, `*.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `NOTICE`, `LICENSE`, `pyproject.toml`, `requirements-dev.txt`, `Dockerfile`, `.dockerignore`, `docker-compose.yml`, `actions-runner`.
+- [x] 2.3 Write `docker-compose.yml` — service `princess`, `build: .`, `container_name: princess`, `restart: unless-stopped`, `networks: [nginx-proxy-network]`, env `HOST=0.0.0.0`, `PORT=8000`. Top-level `networks: nginx-proxy-network: { external: true }`.
+- [x] 2.4 Local build smoke: `docker compose build`. Verify the resulting image runs as a non-root UID and does NOT contain pytest/pylint/black.
+- [x] 2.5 Commit: `deploy-via-nginx-director: Add Dockerfile and compose for Princess container`
 
 ## 3. Register with nginx-director (operator runbook)
 
