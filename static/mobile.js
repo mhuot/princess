@@ -39,9 +39,6 @@ document.addEventListener("DOMContentLoaded", () => {
   $("m-solo-add-3").addEventListener("click", () => { $("m-solo-sheet").close(); mAddBotsThenStart(3); });
   $("m-solo-cancel").addEventListener("click", () => $("m-solo-sheet").close());
   $("m-sort-btn").addEventListener("click", toggleSort);
-  $("m-hand-row").addEventListener("scroll", updateEdgeIndicators, { passive: true });
-  $("m-hand-prev").addEventListener("click", () => scrollHandBy(-1));
-  $("m-hand-next").addEventListener("click", () => scrollHandBy(1));
   $("m-lock-in-btn").addEventListener("click", lockInSetup);
   $("m-play-btn").addEventListener("click", playSelected);
   $("m-pickup-btn").addEventListener("click", pickupPile);
@@ -425,26 +422,6 @@ function renderHand(view) {
     row.appendChild(btn);
   });
 
-  updateEdgeIndicators();
-}
-
-function updateEdgeIndicators() {
-  const wrap = $("m-hand-wrap");
-  const row = $("m-hand-row");
-  if (!wrap || !row || wrap.hidden) return;
-  const atStart = row.scrollLeft <= 4;
-  const atEnd = row.scrollLeft + row.clientWidth >= row.scrollWidth - 4;
-  const scrollable = row.scrollWidth > row.clientWidth + 4;
-  wrap.classList.toggle("has-prev", scrollable && !atStart);
-  wrap.classList.toggle("has-next", scrollable && !atEnd);
-}
-
-function scrollHandBy(direction) {
-  const row = $("m-hand-row");
-  const card = row.querySelector(".m-hand-card");
-  if (!card) return;
-  const step = card.offsetWidth + 8;
-  row.scrollBy({ left: direction * step, behavior: "smooth" });
 }
 
 function toggleSort() {
