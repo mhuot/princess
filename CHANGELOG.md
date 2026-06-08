@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Mobile Share button now visually confirms the clipboard copy by flashing the `↗` glyph to `✓` for 1.5s. The previous `Link copied!` toast was rendered into `#m-lobby-error` — an element inside `#m-landing` that gets hidden the moment a room is created, so it was always invisible from the user's perspective. Caught by automated Playwright smoke test. [mobile-share-toast-fix]
 - End-of-round panel now hides the play surface completely. The `hidden` attribute is silently overridden by author CSS that sets `display: flex`/`block`, so paired `[hidden] { display: none !important; }` rules now enforce the attribute. The winner panel also surfaces the round-ending action (same 🔥/↑/👑 glyphs the status stack uses) so you can see the winning play directly under the winner's name. [game-over-clean-render]
 - Setup phase no longer carries selections across rematches or reconnects — `state.setupSelected` is reset on every transition INTO `phase: "setup"` (peer-triggered re-renders during setup keep your in-progress picks intact). The `.selected` style is also visually distinct from the wild-rank ★ badge: selected cards now wear a 4px accent border and a bottom-left ✓ glyph (opposite the wild ★ in the top-right). Choose-card buttons carry `aria-pressed` for screen-reader users. [setup-no-auto-preselect]
 
