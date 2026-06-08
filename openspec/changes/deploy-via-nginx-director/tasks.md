@@ -18,21 +18,21 @@
 
 These steps are out-of-repo. Performed once via the nginx-director MCP server's `create_app` tool or the web UI, atomically: writes the per-app JSON, generates the nginx server block from `templates/app.conf.template`, creates the Route53 A record, and reloads nginx. The chosen subdomain and any other specifics live in private operator notes, not in this change.
 
-- [ ] 3.1 Call `create_app(name='princess', subdomain=<operator choice>, container_name='princess', port=8000)` via the MCP server (or perform the equivalent in the web UI).
-- [ ] 3.2 Bring up the container: `docker compose up -d`.
-- [ ] 3.3 Verify the container is on `nginx-proxy-network`: `docker inspect princess --format '{{json .NetworkSettings.Networks}}' | jq 'keys'` includes `nginx-proxy-network`.
-- [ ] 3.4 Reload nginx now that the upstream resolves: `docker exec nginx-director nginx -s reload`.
-- [ ] 3.5 End-to-end check from a browser at the deployment URL: create a room, add a bot, play one move. (No commit — verification only.)
+- [x] 3.1 Call `create_app(name='princess', subdomain=<operator choice>, container_name='princess', port=8000)` via the MCP server (or perform the equivalent in the web UI).
+- [x] 3.2 Bring up the container: `docker compose up -d`.
+- [x] 3.3 Verify the container is on `nginx-proxy-network`: `docker inspect princess --format '{{json .NetworkSettings.Networks}}' | jq 'keys'` includes `nginx-proxy-network`.
+- [x] 3.4 Reload nginx now that the upstream resolves: `docker exec nginx-director nginx -s reload`.
+- [x] 3.5 End-to-end check from a browser at the deployment URL: create a room, add a bot, play one move. (No commit — verification only.)
 
 ## 4. Register the self-hosted runner
 
-- [ ] 4.1 Mint a registration token: `gh api -X POST /repos/mhuot/princess/actions/runners/registration-token --jq .token`.
-- [ ] 4.2 On the host: `mkdir -p actions-runner && cd actions-runner` and download the latest `actions-runner-linux-arm64-*.tar.gz` from `github.com/actions/runner/releases/latest`; extract.
-- [ ] 4.3 Configure: `./config.sh --url https://github.com/mhuot/princess --token <TOKEN> --name princess-deploy --labels princess --work _work --unattended`. (`self-hosted`, `Linux`, `ARM64` are added automatically.)
-- [ ] 4.4 Install + start as a systemd service: `sudo ./svc.sh install ubuntu && sudo ./svc.sh start`. Confirm `systemctl status actions.runner.mhuot-princess.princess-deploy.service` reports `active (running)` and `Listening for Jobs`.
-- [ ] 4.5 Confirm the runner appears via `gh api /repos/mhuot/princess/actions/runners --jq '.runners[]|{name,status,labels}'` with status `online` and labels including `princess`.
-- [ ] 4.6 Add `actions-runner/` to `.gitignore`.
-- [ ] 4.7 Commit (only if `.gitignore` changed): `deploy-via-nginx-director: Ignore self-hosted runner workdir`
+- [x] 4.1 Mint a registration token: `gh api -X POST /repos/mhuot/princess/actions/runners/registration-token --jq .token`.
+- [x] 4.2 On the host: `mkdir -p actions-runner && cd actions-runner` and download the latest `actions-runner-linux-arm64-*.tar.gz` from `github.com/actions/runner/releases/latest`; extract.
+- [x] 4.3 Configure: `./config.sh --url https://github.com/mhuot/princess --token <TOKEN> --name princess-deploy --labels princess --work _work --unattended`. (`self-hosted`, `Linux`, `ARM64` are added automatically.)
+- [x] 4.4 Install + start as a systemd service: `sudo ./svc.sh install ubuntu && sudo ./svc.sh start`. Confirm `systemctl status actions.runner.mhuot-princess.princess-deploy.service` reports `active (running)` and `Listening for Jobs`.
+- [x] 4.5 Confirm the runner appears via `gh api /repos/mhuot/princess/actions/runners --jq '.runners[]|{name,status,labels}'` with status `online` and labels including `princess`.
+- [x] 4.6 Add `actions-runner/` to `.gitignore`.
+- [x] 4.7 Commit (only if `.gitignore` changed): `deploy-via-nginx-director: Ignore self-hosted runner workdir`
 
 ## 5. Deploy workflow
 
