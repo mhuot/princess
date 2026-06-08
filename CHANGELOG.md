@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Mobile opponent chips now show each opponent's **face-up cards** inline (with the ★ glyph on wild ranks), matching the desktop UI. Public information is now visible without leaving the play screen. [mobile-opponent-face-up]
 - Mobile hand is now a horizontally-scrolling row of full-size cards (3 visible at iPhone 14 width) with snap-to-card scrolling, tappable left/right chevron indicators when more cards exist off-screen, and a **Sort: rank / off** toggle plus a hand-count badge. Replaces the fan-out arc from the original mobile UI. [mobile-hand-scroll-sort]
 
 ### Fixed

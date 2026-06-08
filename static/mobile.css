@@ -170,13 +170,45 @@ input {
   background: var(--surface-2);
   border-radius: 10px;
   padding: 0.4rem 0.55rem;
-  min-width: 110px;
+  min-width: 170px;
   border: 2px solid transparent;
 }
 .m-opponent.turn { border-color: var(--accent); }
 .m-opponent.finished { opacity: 0.55; }
 .m-opponent .m-opp-name { font-weight: 700; font-size: 0.85rem; color: var(--accent); }
 .m-opponent .m-opp-meta { font-size: 0.75rem; color: var(--ink-dim); margin-top: 0.15rem; }
+
+.m-opp-face-up {
+  display: flex;
+  gap: 3px;
+  margin: 4px 0 2px;
+  min-height: 0;
+}
+
+.m-opp-mini-card {
+  position: relative;
+  width: 22px;
+  height: 32px;
+  background: var(--ink);
+  color: #11111b;
+  border-radius: 3px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+}
+.m-opp-mini-card.red { color: #a3002b; }
+.m-opp-mini-card.special::after {
+  content: "★";
+  position: absolute;
+  top: 0;
+  right: 1px;
+  font-size: 0.5rem;
+  color: var(--accent-strong);
+  line-height: 1;
+}
 
 /* Pile + rule */
 .m-pile-area {
