@@ -23,6 +23,8 @@ const state = {
   sortHand: true,
 };
 
+let handEndObserver = null;
+
 const $ = (id) => document.getElementById(id);
 const RANK_LABEL = { 11: "J", 12: "Q", 13: "K", 14: "A" };
 const rankLabel = (r) => RANK_LABEL[r] || String(r);
@@ -39,6 +41,35 @@ document.addEventListener("DOMContentLoaded", () => {
   $("m-solo-add-3").addEventListener("click", () => { $("m-solo-sheet").close(); mAddBotsThenStart(3); });
   $("m-solo-cancel").addEventListener("click", () => $("m-solo-sheet").close());
   $("m-sort-btn").addEventListener("click", toggleSort);
+
+  const actionBar = document.querySelector("#m-game .m-action-bar");
+  if (actionBar) {
+    const barHeight = actionBar.getBoundingClientRect().height || 80;
+    handEndObserver = new IntersectionObserver(
+      (entries) => {
+        const chip = $("m-hand-scroll-hint");
+        const entry = entries[0];
+        if (!entry || !chip) return;
+        if (entry.isIntersecting) {
+          chip.hidden = true;
+          return;
+        }
+        const threshold = window.innerHeight - barHeight;
+        let hiddenCount = 0;
+        document.querySelectorAll("#m-hand-row .m-hand-card").forEach((c) => {
+          if (c.getBoundingClientRect().top >= threshold) hiddenCount++;
+        });
+        chip.hidden = hiddenCount === 0;
+        chip.textContent = `↓ ${hiddenCount} more`;
+      },
+      { rootMargin: `0px 0px -${barHeight + 12}px 0px` }
+    );
+  }
+
+  $("m-hand-scroll-hint").addEventListener("click", () => {
+    const sentinel = $("m-hand-end-sentinel");
+    if (sentinel) sentinel.scrollIntoView({ block: "end", behavior: "smooth" });
+  });
   $("m-lock-in-btn").addEventListener("click", lockInSetup);
   $("m-play-btn").addEventListener("click", playSelected);
   $("m-pickup-btn").addEventListener("click", pickupPile);
@@ -396,6 +427,7 @@ function renderHand(view) {
   if (!rawCards.length || me.active_source !== "hand") {
     toolbar.hidden = true;
     wrap.hidden = true;
+    $("m-hand-scroll-hint").hidden = true;
     return;
   }
   toolbar.hidden = false;
@@ -422,6 +454,14 @@ function renderHand(view) {
     row.appendChild(btn);
   });
 
+  const sentinel = document.createElement("span");
+  sentinel.id = "m-hand-end-sentinel";
+  sentinel.setAttribute("aria-hidden", "true");
+  row.appendChild(sentinel);
+  if (handEndObserver) {
+    handEndObserver.disconnect();
+    handEndObserver.observe(sentinel);
+  }
 }
 
 function toggleSort() {
