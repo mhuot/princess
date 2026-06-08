@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Every lobby and the mobile game-view top bar gain a **Share** affordance. Tapping it opens the OS share sheet (`navigator.share`) on capable mobile browsers, or copies the room URL (`/room/<code>` on desktop, `/m/<code>` on mobile) to the clipboard with a transient **Copied!** confirmation. The code-only tap-to-copy on the mobile game-view room chip stays unchanged for voice-dictation flows. [share-room-link]
 - Mobile pile area now shows a **Discard** count below the Deck count (sourced from `view.pile_size`). Easier to judge whether picking up the pile is a small concession or a 12-card disaster. [mobile-discard-count]
 - Mobile hand surfaces a floating **↓ N more** indicator chip when one or more hand cards are hidden beneath the sticky action bar (typically a 16+ card hand after a forced pickup). Tap the chip to smooth-scroll to the end of the hand. `#m-game` reserves bottom padding so the last row clears the action bar at the bottom of the page. [mobile-hand-scroll-hint]
 - When the host clicks **Start game** alone in a room, a friendly prompt offers a one-tap path: **Add 1 bot**, **Add 2 bots**, **Add 3 bots**, or **Back to lobby**. Confirming adds the bots sequentially then starts the round. No prompt if any other seat is already filled. Both desktop and mobile. [solo-start-bot-prompt]

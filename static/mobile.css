@@ -85,7 +85,7 @@ input {
 #m-landing label { display: block; margin: 0.75rem 0 0.25rem; font-weight: 600; }
 #m-landing button { width: 100%; margin-top: 0.5rem; }
 .m-or { text-align: center; color: var(--ink-dim); margin: 0.75rem 0; }
-.m-room-line { margin: 0.5rem 0; font-size: 1.1rem; }
+.m-room-line { margin: 0.5rem 0; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; }
 .m-room-line strong { font-family: ui-monospace, SFMono-Regular, monospace; color: var(--accent); letter-spacing: 0.1em; }
 
 #m-seat-list { list-style: none; padding: 0; margin: 0.5rem 0; }

@@ -84,6 +84,8 @@ document.addEventListener("DOMContentLoaded", () => {
   $("m-rename-cancel").addEventListener("click", () => $("m-rename-sheet").close());
   $("m-rename-submit").addEventListener("click", submitRename);
   $("m-game-room-code").addEventListener("click", copyRoomCode);
+  $("m-share-btn-lobby").addEventListener("click", shareRoomLink);
+  $("m-share-btn-game").addEventListener("click", shareRoomLink);
 
   const m = location.pathname.match(/^\/m\/([A-Z0-9]{4})$/i);
   if (m) $("m-code").value = m[1].toUpperCase();
@@ -698,6 +700,33 @@ async function copyRoomCode() {
   if (!state.code) return;
   try { await navigator.clipboard.writeText(state.code); }
   catch { /* clipboard not available — silent */ }
+}
+
+async function shareRoomLink() {
+  if (!state.code) return;
+  const url = `${location.origin}/m/${state.code}`;
+  const payload = {
+    title: "Princess Card Game",
+    text: `Join my Princess room ${state.code}:`,
+    url,
+  };
+  if (navigator.share) {
+    try { await navigator.share(payload); return; }
+    catch (e) { if (e.name === "AbortError") return; /* fall through */ }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    flashShared();
+  } catch { /* silent */ }
+}
+
+function flashShared() {
+  const el = $("m-lobby-error");
+  if (!el) return;
+  const prev = el.textContent;
+  el.textContent = "Link copied!";
+  el.hidden = false;
+  setTimeout(() => { el.hidden = true; el.textContent = prev; }, 1500);
 }
 
 function sendAction(msg) {
