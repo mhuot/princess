@@ -42,6 +42,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("new-game-btn").addEventListener("click", () => location.reload());
   $("quit-btn").addEventListener("click", quitGame);
   $("rename-btn").addEventListener("click", promptRenameForGame);
+  $("share-link-btn").addEventListener("click", shareRoomLink);
   $("quit-dialog-cancel").addEventListener("click", () => $("quit-dialog").close());
   $("quit-dialog").addEventListener("close", () => {});
 
@@ -227,6 +228,27 @@ async function saveConfig() {
       config,
     });
   } catch (e) { showError("lobby-error", e.message); }
+}
+
+async function shareRoomLink() {
+  if (!state.code) return;
+  const url = `${location.origin}/room/${state.code}`;
+  const payload = {
+    title: "Princess Card Game",
+    text: `Join my Princess room ${state.code}:`,
+    url,
+  };
+  if (navigator.share) {
+    try { await navigator.share(payload); return; }
+    catch (e) { if (e.name === "AbortError") return; /* fall through */ }
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    const btn = $("share-link-btn");
+    const original = btn.textContent;
+    btn.textContent = "Copied!";
+    setTimeout(() => { btn.textContent = original; }, 1500);
+  } catch { /* silent */ }
 }
 
 async function removeBot(botPid) {
