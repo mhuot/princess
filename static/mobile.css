@@ -326,27 +326,22 @@ input {
 
 .m-hand-row {
   display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  -webkit-overflow-scrolling: touch;
-  touch-action: pan-x;
-  padding: 8px 0 12px;
-  scrollbar-width: none;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 4px 0;
 }
-.m-hand-row::-webkit-scrollbar { display: none; }
 
 .m-hand-card {
   position: relative;
-  flex: 0 0 calc((100% - 16px) / 3);
-  height: 130px;
-  scroll-snap-align: start;
+  flex: 0 0 calc((100% - 24px) / 5);
+  height: 90px;
   background: var(--ink);
   color: #11111b;
   border: 3px solid transparent;
   border-radius: 10px;
   font-weight: 700;
-  font-size: 1.4rem;
+  font-size: 1.05rem;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -366,73 +361,24 @@ input {
   position: absolute;
   bottom: 2px;
   left: 4px;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   font-weight: 900;
   color: var(--accent-strong);
 }
 .m-hand-card.special::after {
   content: "★";
   position: absolute;
-  top: 4px;
-  right: 6px;
-  font-size: 0.85rem;
+  top: 3px;
+  right: 5px;
+  font-size: 0.7rem;
   color: var(--accent-strong);
 }
 
-/* Edge fades — visible only when more cards exist that direction */
-.m-hand-wrap::before,
-.m-hand-wrap::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 28px;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-  z-index: 1;
-}
-.m-hand-wrap::before {
-  left: 0;
-  background: linear-gradient(to right, var(--bg), transparent);
-}
-.m-hand-wrap::after {
-  right: 0;
-  background: linear-gradient(to left, var(--bg), transparent);
-}
-.m-hand-wrap.has-prev::before { opacity: 1; }
-.m-hand-wrap.has-next::after { opacity: 1; }
-
-.m-hand-edge {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 36px;
-  height: 44px;
-  padding: 0;
-  border-radius: 18px;
-  background: var(--surface-2);
-  color: var(--accent);
-  font-size: 1.4rem;
-  line-height: 1;
-  z-index: 2;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s ease;
-}
-.m-hand-edge.prev { left: -6px; }
-.m-hand-edge.next { right: -6px; }
-.m-hand-wrap.has-prev .m-hand-edge.prev,
-.m-hand-wrap.has-next .m-hand-edge.next {
-  opacity: 0.95;
-  pointer-events: auto;
-}
-
 @media (min-width: 480px) {
-  .m-hand-card { flex: 0 0 calc((100% - 24px) / 4); }
+  .m-hand-card { flex: 0 0 calc((100% - 30px) / 6); }
 }
 @media (max-width: 359px) {
-  .m-hand-card { flex: 0 0 calc((100% - 8px) / 2); }
+  .m-hand-card { flex: 0 0 calc((100% - 18px) / 4); }
 }
 
 /* Sticky action bar */

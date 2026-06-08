@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Mobile hand now **wraps to multiple rows** of smaller cards (5 per row at iPhone 14 width) instead of horizontally scrolling. The whole hand is visible at a glance; very large hands push the page scroll. Edge chevrons, gradient fades, and scroll-snap are gone. The **Sort: rank / off** toggle and hand-count badge stay. [mobile-hand-wrap]
 - Mobile opponent chips now show each opponent's **face-up cards** inline (with the ★ glyph on wild ranks), matching the desktop UI. Public information is now visible without leaving the play screen. [mobile-opponent-face-up]
 - Mobile hand is now a horizontally-scrolling row of full-size cards (3 visible at iPhone 14 width) with snap-to-card scrolling, tappable left/right chevron indicators when more cards exist off-screen, and a **Sort: rank / off** toggle plus a hand-count badge. Replaces the fan-out arc from the original mobile UI. [mobile-hand-scroll-sort]
 
