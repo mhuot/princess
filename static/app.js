@@ -19,6 +19,7 @@ const state = {
   setupSelected: new Set(),
   seatWasHuman: new Set(),
   phase: null,
+  lastRoom: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -28,6 +29,10 @@ document.addEventListener("DOMContentLoaded", () => {
   $("join-btn").addEventListener("click", joinRoom);
   $("add-bot-btn").addEventListener("click", addBot);
   $("start-btn").addEventListener("click", startGame);
+  $("solo-add-1").addEventListener("click", () => { $("solo-start-modal").close(); addBotsThenStart(1); });
+  $("solo-add-2").addEventListener("click", () => { $("solo-start-modal").close(); addBotsThenStart(2); });
+  $("solo-add-3").addEventListener("click", () => { $("solo-start-modal").close(); addBotsThenStart(3); });
+  $("solo-cancel").addEventListener("click", () => $("solo-start-modal").close());
   $("play-btn").addEventListener("click", playSelected);
   $("pickup-btn").addEventListener("click", pickup);
   $("sort-hand-btn").addEventListener("click", toggleSortHand);
@@ -146,6 +151,7 @@ function appendNameWithTag(parent, name, seat) {
 }
 
 function renderLobby(room) {
+  state.lastRoom = room;
   $("game-view").hidden = true;
   $("room-view").hidden = false;
   renderConfigPanel(room);
@@ -291,6 +297,24 @@ async function addBot() {
 }
 
 async function startGame() {
+  if (state.lastRoom?.seats?.length === 1) {
+    $("solo-start-modal").showModal();
+    return;
+  }
+  try {
+    await postJSON(`/api/rooms/${state.code}/start`, { host_pid: state.pid });
+  } catch (e) { showError("lobby-error", e.message); }
+}
+
+async function addBotsThenStart(n) {
+  for (let i = 0; i < n; i++) {
+    try {
+      await postJSON(`/api/rooms/${state.code}/bot`, { host_pid: state.pid });
+    } catch (e) {
+      showError("lobby-error", e.message);
+      return;
+    }
+  }
   try {
     await postJSON(`/api/rooms/${state.code}/start`, { host_pid: state.pid });
   } catch (e) { showError("lobby-error", e.message); }
