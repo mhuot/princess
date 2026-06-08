@@ -364,6 +364,84 @@ def test_rename_overlong_name_returns_422():
     assert res.status_code == 422
 
 
+# --- Unique-name dedupe tests ----------------------------------------------
+
+
+def test_join_rejects_duplicate_name():
+    client = _client()
+    code, _host_pid = _bootstrap_lobby(client, host_name="Ada")
+    res = client.post(f"/api/rooms/{code}/join", json={"name": "Ada"})
+    assert res.status_code == 409
+    assert "'Ada'" in res.json()["detail"]
+
+
+def test_join_rejects_case_insensitive_duplicate():
+    client = _client()
+    code, _host_pid = _bootstrap_lobby(client, host_name="Mike")
+    res = client.post(f"/api/rooms/{code}/join", json={"name": "mike"})
+    assert res.status_code == 409
+
+
+def test_join_rejects_whitespace_padded_duplicate():
+    client = _client()
+    code, _host_pid = _bootstrap_lobby(client, host_name="Mike")
+    res = client.post(f"/api/rooms/{code}/join", json={"name": "  Mike  "})
+    assert res.status_code == 409
+
+
+def test_join_rejects_name_matching_a_bot():
+    client = _client()
+    code, host_pid = _bootstrap_lobby(client)
+    bot_res = client.post(f"/api/rooms/{code}/bot", json={"host_pid": host_pid})
+    bot_name = bot_res.json()["name"]
+    res = client.post(f"/api/rooms/{code}/join", json={"name": bot_name})
+    assert res.status_code == 409
+
+
+def test_rename_rejects_duplicate_name():
+    client = _client()
+    code, _host_pid = _bootstrap_lobby(client, host_name="Mike")
+    join = client.post(f"/api/rooms/{code}/join", json={"name": "Pat"}).json()
+    res = client.post(
+        f"/api/rooms/{code}/rename",
+        json={"pid": join["pid"], "new_name": "Mike"},
+    )
+    assert res.status_code == 409
+    assert "'Mike'" in res.json()["detail"]
+
+
+def test_rename_to_own_name_is_noop():
+    client = _client()
+    code, host_pid = _bootstrap_lobby(client, host_name="Mike")
+    room = rooms_module.REGISTRY.get(code)
+    # Snapshot before
+    before_name = room.seats[0].name
+    res = client.post(
+        f"/api/rooms/{code}/rename",
+        json={"pid": host_pid, "new_name": "  MIKE  "},
+    )
+    assert res.status_code == 200
+    # No state change — original casing preserved.
+    assert room.seats[0].name == before_name
+
+
+def test_create_room_trims_host_name():
+    client = _client()
+    res = client.post("/api/rooms", json={"name": "  Mike  "})
+    assert res.status_code == 200
+    code = res.json()["code"]
+    room = rooms_module.REGISTRY.get(code)
+    assert room.seats[0].name == "Mike"
+
+
+def test_bot_name_avoids_human_name():
+    client = _client()
+    code, host_pid = _bootstrap_lobby(client, host_name="Galaxy Brain")
+    res = client.post(f"/api/rooms/{code}/bot", json={"host_pid": host_pid})
+    assert res.status_code == 200
+    assert res.json()["name"] != "Galaxy Brain"
+
+
 def test_abort_returns_room_to_lobby():
     client = _client()
     code, host_pid = _bootstrap_lobby(client)

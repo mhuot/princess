@@ -139,13 +139,32 @@ async def clear_logs() -> dict:
     return {"ok": True}
 
 
+def _name_already_taken(
+    room, name: str, *, exclude_pid: str | None = None
+) -> tuple[bool, str | None]:
+    """Case-insensitive, whitespace-trimmed dedupe check.
+
+    Returns (True, existing_name) when a conflict exists, where existing_name
+    is the casing of the existing seat (for the error message). Returns
+    (False, None) otherwise.
+    """
+    needle = name.strip().casefold()
+    for s in room.seats:
+        if s.pid == exclude_pid:
+            continue
+        if s.name.strip().casefold() == needle:
+            return True, s.name
+    return False, None
+
+
 @app.post("/api/rooms")
 async def create_room(body: CreateRoomBody) -> dict:
     _sweep_idle_rooms()
+    name = body.name.strip()
     pid = _new_pid()
-    room = await REGISTRY.create(host_pid=pid, host_name=body.name)
-    log.info("room created code=%s host=%s pid=%s", room.code, body.name, pid)
-    room_logger(room.code).info("room opened by host=%s pid=%s", body.name, pid)
+    room = await REGISTRY.create(host_pid=pid, host_name=name)
+    log.info("room created code=%s host=%s pid=%s", room.code, name, pid)
+    room_logger(room.code).info("room opened by host=%s pid=%s", name, pid)
     return {"code": room.code, "pid": pid}
 
 
@@ -159,11 +178,13 @@ async def join_room(code: str, body: JoinRoomBody) -> dict:
         raise HTTPException(409, "game already started")
     if len(room.seats) >= MAX_PLAYERS:
         raise HTTPException(409, "room full")
+    name = body.name.strip()
+    taken, existing = _name_already_taken(room, name)
+    if taken:
+        raise HTTPException(409, f"name '{existing}' is already taken in this room")
     pid = _new_pid()
-    room.seats.append(Seat(pid=pid, name=body.name))
-    room_logger(room.code).info(
-        "seat joined name=%s pid=%s seats=%d", body.name, pid, len(room.seats)
-    )
+    room.seats.append(Seat(pid=pid, name=name))
+    room_logger(room.code).info("seat joined name=%s pid=%s seats=%d", name, pid, len(room.seats))
     await room.broadcast_lobby()
     return {"code": room.code, "pid": pid}
 
@@ -230,21 +251,26 @@ async def rename_seat(code: str, body: RenameBody) -> dict:
     seat = room.seat_by_pid(body.pid)
     if seat is None:
         raise HTTPException(404, "seat not found")
+    new_name = body.new_name.strip()
+    # Rename-to-self (case-insensitive) is a no-op — no state change, no broadcast.
+    if new_name.casefold() == seat.name.strip().casefold():
+        return {"ok": True, "name": seat.name}
+    taken, existing = _name_already_taken(room, new_name, exclude_pid=body.pid)
+    if taken:
+        raise HTTPException(409, f"name '{existing}' is already taken in this room")
     old_name = seat.name
-    seat.name = body.new_name
+    seat.name = new_name
     if room.game is not None:
         try:
-            room.game.player(body.pid).name = body.new_name
+            room.game.player(body.pid).name = new_name
         except KeyError:
             pass
-    room_logger(room.code).info(
-        "seat renamed pid=%s old=%r new=%r", body.pid, old_name, body.new_name
-    )
+    room_logger(room.code).info("seat renamed pid=%s old=%r new=%r", body.pid, old_name, new_name)
     if room.game is None:
         await room.broadcast_lobby()
     else:
         await room.broadcast_state()
-    return {"ok": True, "name": body.new_name}
+    return {"ok": True, "name": new_name}
 
 
 @app.post("/api/rooms/{code}/config")
