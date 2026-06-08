@@ -24,6 +24,16 @@ def _client() -> TestClient:
     return TestClient(app)
 
 
+def test_mobile_routes_serve_mobile_html():
+    client = _client()
+    res = client.get("/m")
+    assert res.status_code == 200
+    assert "mobile" in res.text.lower()
+    res2 = client.get("/m/AB12")
+    assert res2.status_code == 200
+    assert res2.text == res.text  # same file
+
+
 def test_create_and_join_room():
     client = _client()
     res = client.post("/api/rooms", json={"name": "Ada"})

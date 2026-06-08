@@ -89,6 +89,16 @@ async def room_page(code: str) -> FileResponse:  # pylint: disable=unused-argume
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/m")
+async def mobile_index() -> FileResponse:
+    return FileResponse(STATIC_DIR / "mobile.html")
+
+
+@app.get("/m/{code}")
+async def mobile_room_page(code: str) -> FileResponse:  # pylint: disable=unused-argument
+    return FileResponse(STATIC_DIR / "mobile.html")
+
+
 @app.get("/logs")
 async def logs_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "logs.html")
