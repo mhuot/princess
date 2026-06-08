@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Phones are auto-redirected from `/` and `/room/<code>` to `/m` and `/m/<code>`. Override with `?desktop=1` or the **View desktop site** link in the mobile lobby. The reverse-path **Mobile site** link lives in the desktop footer. UA detection uses the standard `Mobi` substring check; tablets (which omit `Mobi`) stay on the desktop UI. [mobile-ua-redirect]
+
 ### Changed
 
 - Mobile hand now **wraps to multiple rows** of smaller cards (5 per row at iPhone 14 width) instead of horizontally scrolling. The whole hand is visible at a glance; very large hands push the page scroll. Edge chevrons, gradient fades, and scroll-snap are gone. The **Sort: rank / off** toggle and hand-count badge stay. [mobile-hand-wrap]

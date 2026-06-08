@@ -28,7 +28,7 @@ cd princess && python3 -m venv .venv && .venv/bin/pip install -r requirements-de
 
 Open <http://127.0.0.1:8000>, enter a name, click **Create new room**, click **Add bot** (they have *opinions* about your skill), and click **Start game**. That's it.
 
-**On a phone?** Use <http://127.0.0.1:8000/m> for the touch-friendly UI (fan-out hand, sticky action bar, bottom-sheet menus). Share `/m/<code>` with friends to drop them straight into the join screen. The desktop UI at `/` is unchanged.
+**On a phone?** Phones are auto-redirected from `/` to `/m` (the touch-friendly UI — wrapped hand, sticky action bar, bottom-sheet menus). Share `/m/<code>` with friends to drop them straight into the join screen. To force the desktop UI on a phone, append `?desktop=1` or use the **View desktop site** link in the mobile lobby; the reverse-direction **Mobile site** link sits in the desktop footer.
 
 In the lobby: the host can **Remove** any bot seat (per-row button), and any player can **Rename** themselves via the inline input on their own row — or via the Rename button in the game header during a live round.
 
