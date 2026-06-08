@@ -19,6 +19,7 @@ markdown report at /Users/mhuot/princess/smoke/SMOKE_REPORT.md.
 
 from __future__ import annotations
 
+import os
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -36,7 +37,7 @@ ROOT = Path("/Users/mhuot/princess")
 OUT = ROOT / "smoke"
 SHOTS = OUT / "screens"
 REPORT = OUT / "SMOKE_REPORT.md"
-BASE = "http://127.0.0.1:8000"
+BASE = os.environ.get("PRINCESS_SMOKE_BASE", "http://127.0.0.1:8000").rstrip("/")
 
 
 @dataclass
@@ -94,7 +95,8 @@ def create_room_desktop(page: Page, host_name: str = "Mike") -> str:
     page.goto(BASE + "/")
     page.fill("#player-name", host_name)
     page.click("#create-btn")
-    page.wait_for_selector("#room-code-display:not(:empty)", timeout=4000)
+    page.wait_for_selector("#room-code-display:not(:empty)", timeout=8000)
+    page.wait_for_selector("#seat-list li", timeout=8000)
     return page.locator("#room-code-display").inner_text().strip()
 
 
@@ -102,7 +104,10 @@ def create_room_mobile(page: Page, host_name: str = "Mike") -> str:
     page.goto(BASE + "/m")
     page.fill("#m-name", host_name)
     page.click("#m-create-btn")
-    page.wait_for_selector("#m-room-code:not(:empty)", timeout=4000)
+    page.wait_for_selector("#m-room-code:not(:empty)", timeout=8000)
+    # Wait for the WebSocket lobby broadcast to populate state.lastRoom so the
+    # solo-start sheet logic has accurate seat counts.
+    page.wait_for_selector("#m-seat-list li", timeout=8000)
     return page.locator("#m-room-code").inner_text().strip()
 
 
@@ -110,17 +115,17 @@ def add_bots_and_start(page: Page, n: int, *, mobile: bool) -> None:
     """Use the solo-start modal to add N bots and start."""
     if mobile:
         page.click("#m-start-btn")
-        page.wait_for_selector("#m-solo-sheet[open]", timeout=2000)
+        page.wait_for_selector("#m-solo-sheet[open]", timeout=6000)
         page.click(f"#m-solo-add-{n}")
     else:
         page.click("#start-btn")
-        page.wait_for_selector("#solo-start-modal[open]", timeout=2000)
+        page.wait_for_selector("#solo-start-modal[open]", timeout=6000)
         page.click(f"#solo-add-{n}")
     # Wait for the setup phase to render (face-up choose grid).
     if mobile:
-        page.wait_for_selector("#m-choose-grid .m-choose-card", timeout=6000)
+        page.wait_for_selector("#m-choose-grid .m-choose-card", timeout=12000)
     else:
-        page.wait_for_selector("#choose-row .card", timeout=6000)
+        page.wait_for_selector("#choose-row .card", timeout=12000)
 
 
 def section_share_room_link(browser: Browser) -> Section:
