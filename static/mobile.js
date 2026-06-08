@@ -304,6 +304,16 @@ function renderOpponents(view) {
     name.className = "m-opp-name";
     name.textContent = p.name + (p.is_bot ? " (bot)" : "") + (p.finished ? " · out" : "");
     box.appendChild(name);
+    const faceUpRow = document.createElement("div");
+    faceUpRow.className = "m-opp-face-up";
+    (p.face_up || []).forEach((c) => {
+      const el = document.createElement("span");
+      el.className = "m-opp-mini-card " + (isRedSuit(c.suit) ? "red" : "black");
+      el.textContent = `${rankLabel(c.rank)}${suitGlyph(c.suit)}`;
+      if (isSpecialRank(c.rank, view)) el.classList.add("special");
+      faceUpRow.appendChild(el);
+    });
+    box.appendChild(faceUpRow);
     const meta = document.createElement("div");
     meta.className = "m-opp-meta";
     meta.textContent = `hand ${p.hand_count} · down ${p.face_down_count}`;
