@@ -1,0 +1,135 @@
+## ADDED Requirements
+
+### Requirement: Mobile route at /m
+
+The server SHALL serve `static/mobile.html` at `GET /m`. It SHALL also serve the same file at `GET /m/{code}` so a room link of the form `<host>/m/AB12` opens the mobile UI with the room code prefilled into the join input.
+
+The mobile UI SHALL be a complete client — it uses the same REST endpoints (`/api/rooms`, `/join`, `/bot`, `/start`, `/rematch`, `/abort`, `/leave`, `/end_round`, `/rename`) and the same WebSocket protocol (`/ws/{code}/{pid}` with `play` / `pickup` / `set_face_up` messages) as the desktop UI at `/`.
+
+#### Scenario: Mobile root loads the mobile page
+
+- **WHEN** a browser opens `http://<host>/m`
+- **THEN** the response body is `static/mobile.html`
+
+#### Scenario: Mobile shortcut prefills the room code
+
+- **WHEN** a browser opens `http://<host>/m/AB12`
+- **THEN** the mobile page loads with the room-code input showing `AB12`
+
+### Requirement: Mobile viewport baseline
+
+The mobile UI SHALL render correctly at a minimum portrait viewport width of **390px** (iPhone 14). Wider portrait phones (393, 414, 430) SHALL inherit the same layout with proportionally more breathing room. The mobile HTML's `<meta name="viewport">` tag SHALL set `width=device-width, initial-scale=1, user-scalable=no` to disable pinch-zoom (which would distort the fan-out arc).
+
+#### Scenario: Layout fits 390px portrait
+
+- **WHEN** the mobile page is rendered at viewport `390 × 844` portrait
+- **THEN** no element overflows the viewport horizontally and the action bar at the bottom is fully visible
+
+### Requirement: Game view layout (mobile)
+
+The mobile game view SHALL stack vertically (top to bottom):
+
+1. **Top bar** — room code (tap to copy), `?` rules icon, **Rename** button, **Quit** button, status ticker (single-line newest action).
+2. **Opponents strip** — single horizontal row, scrolls if needed; each opponent shows initial-circle avatar, truncated name, hand count, bot/turn indicator.
+3. **Pile area** — centered: deck count, discard pile top card (full-size), rule indicator below.
+4. **Your table** — face-up and face-down cards in a single mini-row (same as desktop layout, just smaller).
+5. **Hand (fan-out arc)** — sits above the action bar; each card is rendered as a positioned button with `transform: rotate(<angle>deg) translateY(<lift>px)`. The middle card sits flat; angles increase linearly toward both ends, capped at ±25°. Selected cards lift an extra translateY.
+6. **Sticky action bar** — bottom of the viewport, always visible: **Play selected** (green) and **Pick up pile** (red). Tap targets ≥ 44 × 44 px.
+
+The hand SHALL handle multi-rank selection identically to the desktop UI (cards must share rank; selecting a different rank clears the prior selection).
+
+#### Scenario: Fan-out cards lay along an arc
+
+- **WHEN** the player holds 5 cards
+- **THEN** each card's CSS transform is a rotation between `-25deg` and `+25deg` (linear by index) combined with a small downward translate at the edges
+
+#### Scenario: Selected card pops up
+
+- **WHEN** the player taps a card to select it
+- **THEN** the card's transform gains an additional negative translateY relative to its un-selected position
+
+#### Scenario: Action bar stays visible
+
+- **WHEN** the player scrolls or taps any card in the hand
+- **THEN** the action bar at the bottom of the viewport remains visible and tappable
+
+#### Scenario: Tap targets meet accessibility size
+
+- **WHEN** any control (action button, hand card, opponent chip, top-bar button) is rendered
+- **THEN** its bounding box is at least 44 × 44 logical pixels
+
+### Requirement: Mobile lobby
+
+The mobile lobby SHALL provide: name input, **Create new room** button, room-code input, **Join room** button. Once in a room, the lobby SHALL list seats with name + host/bot/offline tags + the caller's own Rename inline-input control.
+
+The mobile lobby SHALL NOT include the House rules config controls. The current reverse rank SHALL be displayed as read-only text ("Reverse rank: 5"). The host on mobile SHALL be able to add a bot (single Add bot button) and Start the game; bot removal SHALL NOT be available on mobile (defer to desktop).
+
+#### Scenario: Mobile lobby has no House rules controls
+
+- **WHEN** a non-host renders the mobile lobby
+- **THEN** no element with id `cfg-reverse-rank` or matching the desktop's House rules panel is present
+
+#### Scenario: Host can Add bot and Start
+
+- **WHEN** the host renders the mobile lobby
+- **THEN** an **Add bot** button and a **Start game** button are visible
+
+#### Scenario: Reverse rank shown as read-only
+
+- **WHEN** any user renders the mobile lobby
+- **THEN** a small "Reverse rank: <rank>" label is shown
+
+### Requirement: Mobile setup phase
+
+When `phase == "setup"`, the mobile UI SHALL render the 6 choose cards as a **2×3 grid** (no fan-out). Tap to toggle selection; selecting a fourth replaces the oldest. The **Lock in selection** button SHALL be the sticky bottom action; it is enabled only when exactly three cards are selected.
+
+The setup phase SHALL reset `state.setupSelected` on transition into setup (same rule as desktop, same trigger), and choose-card buttons SHALL carry `aria-pressed` for screen readers.
+
+#### Scenario: Setup uses a 2×3 grid
+
+- **WHEN** the mobile UI renders the setup phase
+- **THEN** the 6 choose cards are laid out as 2 rows of 3 columns, not as a fan-out
+
+### Requirement: Mobile end-of-round panel
+
+When `view.game_over` is true, the mobile UI SHALL hide the game surface (top bar, opponents strip, pile, your table, fan-out hand, action bar) and render a full-screen winner panel with the same content shape as the desktop UI: kicker, winner name, subtitle, winning-action line (from `view.last_actions[-1]` with the same 🔥 / ↑ / 👑 glyphs), finishing order, **Play a rematch** (host), **Back to lobby**, and a "Waiting for host…" note for non-hosts.
+
+The mobile UI SHALL enforce hiding via paired `[hidden] { display: none !important; }` CSS rules so the `hidden` attribute always wins (same lesson as the desktop fix).
+
+#### Scenario: Mobile winner panel takes the full screen
+
+- **WHEN** the game ends on mobile
+- **THEN** none of the top bar, opponents strip, pile, table, or action bar is visible; only the winner panel is rendered
+
+#### Scenario: Winning action with glyph
+
+- **WHEN** the mobile winner panel renders for a round ended by Mike flipping his last card
+- **THEN** a line `"Mike flipped <card> 👑 Mike"` appears between the winner subtitle and the finishing order list
+
+### Requirement: Mobile quit modal (bottom sheet)
+
+The mobile UI SHALL present the Quit modal as a **bottom sheet** that slides up from the screen bottom, rather than a centered `<dialog>`. The options offered are the same as the desktop UI:
+
+- Non-host mid-round: **Take over with a bot** / **Leave room**.
+- Host mid-round: **End the round now** / **Abort the game**.
+
+The sheet SHALL be dismissible by tapping a backdrop or by swiping down (or, at minimum, a sticky Cancel button).
+
+#### Scenario: Quit sheet renders the right options
+
+- **WHEN** a non-host taps Quit on the mobile UI mid-round
+- **THEN** the bottom sheet contains exactly two buttons — "Take over with a bot" and "Leave room" — with no host-only options
+
+### Requirement: Mobile no-logs / no-legend surface
+
+The mobile UI SHALL NOT include a `/logs` footer link. The mobile UI SHALL replace the desktop "Special cards & house rules" legend with a small **`?` icon** in the top bar; tapping it opens a sheet listing the three wild ranks and what the configured reverse rank is.
+
+#### Scenario: No /logs link on mobile
+
+- **WHEN** the mobile footer is rendered
+- **THEN** no link to `/logs` appears
+
+#### Scenario: Rules sheet opens from the ? icon
+
+- **WHEN** the user taps the `?` icon in the mobile top bar
+- **THEN** a sheet opens listing 2 (wild reset), 10 (burn), and the reverse rank as the three wilds

@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover" />
+    <title>Princess — mobile</title>
+    <link rel="stylesheet" href="/static/mobile.css" />
+    <script src="/static/mobile.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#m-main">Skip to main content</a>
+    <main id="m-main">
+
+      <!-- ============================================================
+           Lobby (landing + in-room)
+           ============================================================ -->
+      <section id="m-lobby" class="m-screen">
+        <section id="m-landing">
+          <h1>👑 Princess</h1>
+          <p class="m-tagline">5-under house rule · touch UI</p>
+          <label for="m-name">Your name</label>
+          <input id="m-name" name="name" maxlength="20" autocomplete="nickname" />
+
+          <button type="button" id="m-create-btn" class="m-primary">Create new room</button>
+          <p class="m-or">or</p>
+
+          <label for="m-code">Room code</label>
+          <input id="m-code" name="code" maxlength="4" pattern="[A-Za-z0-9]{4}" autocomplete="off" />
+          <button type="button" id="m-join-btn" class="m-primary">Join room</button>
+
+          <p id="m-lobby-error" class="m-error" role="alert" hidden></p>
+        </section>
+
+        <section id="m-room" hidden>
+          <p class="m-room-line">Room <strong id="m-room-code"></strong></p>
+          <p id="m-reverse-rank-readout" class="m-muted"></p>
+          <ul id="m-seat-list" aria-label="Players in this room"></ul>
+
+          <div id="m-host-controls" hidden>
+            <button type="button" id="m-add-bot-btn">Add bot</button>
+            <button type="button" id="m-start-btn" class="m-primary">Start game</button>
+          </div>
+          <p id="m-waiting" class="m-muted"></p>
+        </section>
+      </section>
+
+      <!-- ============================================================
+           Setup
+           ============================================================ -->
+      <section id="m-setup" class="m-screen" hidden>
+        <div class="m-top-bar">
+          <button type="button" id="m-setup-rules-btn" class="m-icon" aria-label="Rules">?</button>
+          <span class="m-room-code-tap" id="m-setup-room-code">····</span>
+        </div>
+        <h2>Pick 3 of 6 for face-up</h2>
+        <p class="m-muted">The other 3 become your starting hand.</p>
+        <div id="m-choose-grid" role="list"></div>
+        <p id="m-setup-status" class="m-muted"></p>
+        <div class="m-action-bar">
+          <button type="button" id="m-lock-in-btn" class="m-primary" disabled>Lock in selection</button>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           Game view
+           ============================================================ -->
+      <section id="m-game" class="m-screen" hidden>
+        <div class="m-top-bar">
+          <button type="button" id="m-rules-btn" class="m-icon" aria-label="Rules">?</button>
+          <button type="button" id="m-game-room-code" class="m-room-code-tap" aria-label="Copy room code">····</button>
+          <button type="button" id="m-rename-btn" class="m-icon" aria-label="Rename">✎</button>
+          <button type="button" id="m-quit-btn" class="m-icon m-icon-danger" aria-label="Quit">×</button>
+        </div>
+        <p id="m-status-line" class="m-status" aria-live="polite"></p>
+        <div id="m-opponents" class="m-opponents" aria-label="Opponents"></div>
+        <div class="m-pile-area">
+          <div class="m-pile-stat">
+            <span class="m-stat-label">Deck</span>
+            <span id="m-deck-count">0</span>
+          </div>
+          <div id="m-pile-card" class="m-pile-card empty">empty</div>
+          <div class="m-pile-stat">
+            <span class="m-stat-label">Rule</span>
+            <span id="m-rule-indicator" class="m-rule">anything</span>
+          </div>
+        </div>
+        <div id="m-your-table" class="m-your-table" role="list" aria-label="Your face-up and face-down cards"></div>
+        <div id="m-hand-fan" class="m-hand-fan" role="list" aria-label="Your hand"></div>
+        <div class="m-action-bar">
+          <button type="button" id="m-pickup-btn" class="m-danger" disabled>Pick up</button>
+          <button type="button" id="m-play-btn" class="m-primary" disabled>Play selected</button>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           Game over panel
+           ============================================================ -->
+      <section id="m-game-over" class="m-screen" hidden>
+        <p class="m-kicker">Winner!</p>
+        <h2 id="m-winner-name"></h2>
+        <p id="m-winner-subtitle" class="m-muted"></p>
+        <p id="m-winner-final-action" class="m-winner-final-action"></p>
+        <ol id="m-results"></ol>
+        <p id="m-rematch-note" class="m-muted" hidden>Waiting for the host to start a rematch…</p>
+        <div class="m-action-bar">
+          <button type="button" id="m-new-game-btn">Back to lobby</button>
+          <button type="button" id="m-rematch-btn" class="m-primary">Play a rematch</button>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Bottom-sheet dialogs -->
+    <dialog id="m-quit-sheet" class="m-sheet" aria-labelledby="m-quit-title">
+      <h3 id="m-quit-title">Leave this round</h3>
+      <p class="m-muted">Pick what should happen to your seat.</p>
+      <div id="m-quit-sheet-actions"></div>
+      <button type="button" id="m-quit-sheet-cancel" class="m-cancel">Cancel</button>
+    </dialog>
+
+    <dialog id="m-rules-sheet" class="m-sheet" aria-labelledby="m-rules-title">
+      <h3 id="m-rules-title">Special cards & house rules</h3>
+      <ul id="m-rules-sheet-list"></ul>
+      <button type="button" id="m-rules-sheet-cancel" class="m-cancel">Close</button>
+    </dialog>
+
+    <dialog id="m-rename-sheet" class="m-sheet" aria-labelledby="m-rename-title">
+      <h3 id="m-rename-title">Rename</h3>
+      <input id="m-rename-input" type="text" maxlength="20" />
+      <div class="m-action-row">
+        <button type="button" id="m-rename-cancel">Cancel</button>
+        <button type="button" id="m-rename-submit" class="m-primary">Save</button>
+      </div>
+    </dialog>
+  </body>
+</html>
