@@ -20,6 +20,7 @@ const state = {
   selectedIndices: new Set(),
   setupSelected: new Set(),
   lastRoom: null,
+  sortHand: true,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -37,6 +38,10 @@ document.addEventListener("DOMContentLoaded", () => {
   $("m-solo-add-2").addEventListener("click", () => { $("m-solo-sheet").close(); mAddBotsThenStart(2); });
   $("m-solo-add-3").addEventListener("click", () => { $("m-solo-sheet").close(); mAddBotsThenStart(3); });
   $("m-solo-cancel").addEventListener("click", () => $("m-solo-sheet").close());
+  $("m-sort-btn").addEventListener("click", toggleSort);
+  $("m-hand-row").addEventListener("scroll", updateEdgeIndicators, { passive: true });
+  $("m-hand-prev").addEventListener("click", () => scrollHandBy(-1));
+  $("m-hand-next").addEventListener("click", () => scrollHandBy(1));
   $("m-lock-in-btn").addEventListener("click", lockInSetup);
   $("m-play-btn").addEventListener("click", playSelected);
   $("m-pickup-btn").addEventListener("click", pickupPile);
@@ -375,20 +380,28 @@ function makeMiniCard(c, view) {
 // --- Fan-out hand ----------------------------------------------------------
 
 function renderHand(view) {
-  const fan = $("m-hand-fan");
-  fan.innerHTML = "";
+  const toolbar = $("m-hand-toolbar");
+  const wrap = $("m-hand-wrap");
+  const row = $("m-hand-row");
+  row.innerHTML = "";
   const me = view.you;
-  const cards = me.hand || [];
-  if (!cards.length || me.active_source !== "hand") {
-    fan.style.height = "0px";
+  const rawCards = me.hand || [];
+  if (!rawCards.length || me.active_source !== "hand") {
+    toolbar.hidden = true;
+    wrap.hidden = true;
     return;
   }
-  fan.style.height = "140px";
+  toolbar.hidden = false;
+  wrap.hidden = false;
+  $("m-hand-count").textContent = `${rawCards.length} card${rawCards.length === 1 ? "" : "s"}`;
 
-  const n = cards.length;
-  const maxAngle = Math.min(25, n <= 3 ? 8 * (n - 1) : 25);
-  const arcRadius = 230;
-  cards.forEach((c, idx) => {
+  // Build [{c, idx}] pairs so we can sort while preserving server-side indices.
+  const items = rawCards.map((c, i) => ({ c, idx: i }));
+  if (state.sortHand) {
+    items.sort((a, b) => a.c.rank - b.c.rank || a.idx - b.idx);
+  }
+
+  items.forEach(({ c, idx }) => {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "m-hand-card " + (isRedSuit(c.suit) ? "red" : "black");
@@ -398,21 +411,38 @@ function renderHand(view) {
     if (isSpecialRank(c.rank, view)) btn.classList.add("special");
     if (isLegalRank(c.rank, view) && me.your_turn) btn.classList.add("legal-hint");
     if (state.selectedIndices.has(idx) && me.active_source === "hand") btn.classList.add("selected");
-
-    // Angle ranges symmetrically from -maxAngle to +maxAngle.
-    let angle = 0;
-    if (n > 1) {
-      const t = idx / (n - 1);  // 0..1
-      angle = -maxAngle + 2 * maxAngle * t;
-    }
-    // Lift cards: edges dip slightly so the arc is convex upward.
-    const lift = arcRadius - Math.sqrt(arcRadius * arcRadius - Math.pow(arcRadius * Math.sin((angle * Math.PI) / 180), 2));
-    const selectedBoost = state.selectedIndices.has(idx) ? -22 : 0;
-    btn.style.transform = `translateY(${lift + selectedBoost}px) rotate(${angle}deg)`;
-    btn.style.zIndex = String(idx);
     btn.addEventListener("click", () => toggleSelect(idx, c.rank));
-    fan.appendChild(btn);
+    row.appendChild(btn);
   });
+
+  updateEdgeIndicators();
+}
+
+function updateEdgeIndicators() {
+  const wrap = $("m-hand-wrap");
+  const row = $("m-hand-row");
+  if (!wrap || !row || wrap.hidden) return;
+  const atStart = row.scrollLeft <= 4;
+  const atEnd = row.scrollLeft + row.clientWidth >= row.scrollWidth - 4;
+  const scrollable = row.scrollWidth > row.clientWidth + 4;
+  wrap.classList.toggle("has-prev", scrollable && !atStart);
+  wrap.classList.toggle("has-next", scrollable && !atEnd);
+}
+
+function scrollHandBy(direction) {
+  const row = $("m-hand-row");
+  const card = row.querySelector(".m-hand-card");
+  if (!card) return;
+  const step = card.offsetWidth + 8;
+  row.scrollBy({ left: direction * step, behavior: "smooth" });
+}
+
+function toggleSort() {
+  state.sortHand = !state.sortHand;
+  const btn = $("m-sort-btn");
+  btn.setAttribute("aria-pressed", String(state.sortHand));
+  btn.textContent = state.sortHand ? "Sort: rank" : "Sort: off";
+  if (state.view) renderHand(state.view);
 }
 
 function toggleSelect(idx, rank) {

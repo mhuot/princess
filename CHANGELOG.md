@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Mobile hand is now a horizontally-scrolling row of full-size cards (3 visible at iPhone 14 width) with snap-to-card scrolling, tappable left/right chevron indicators when more cards exist off-screen, and a **Sort: rank / off** toggle plus a hand-count badge. Replaces the fan-out arc from the original mobile UI. [mobile-hand-scroll-sort]
+
 ### Fixed
 
 - End-of-round panel now hides the play surface completely. The `hidden` attribute is silently overridden by author CSS that sets `display: flex`/`block`, so paired `[hidden] { display: none !important; }` rules now enforce the attribute. The winner panel also surfaces the round-ending action (same 🔥/↑/👑 glyphs the status stack uses) so you can see the winning play directly under the winner's name. [game-over-clean-render]
