@@ -36,14 +36,14 @@ These steps are out-of-repo. Performed once via the nginx-director MCP server's 
 
 ## 5. Deploy workflow
 
-- [ ] 5.1 Write `.github/workflows/deploy.yml`:
+- [x] 5.1 Write `.github/workflows/deploy.yml`:
   - `name: Deploy`
   - `on: { push: { branches: [main] }, workflow_dispatch: {} }`
   - `concurrency: { group: deploy-princess, cancel-in-progress: false }`
   - `jobs.deploy.runs-on: [self-hosted, princess]`
   - Steps: `actions/checkout@v4`; `docker compose up -d --build`; `sleep 5`; smoke (`docker exec princess python -c "import urllib.request,sys; r=urllib.request.urlopen('http://127.0.0.1:8000/',timeout=10); sys.exit(0 if r.status==200 else 1)"`); on failure `docker compose logs --tail=100 princess`.
-- [ ] 5.2 Local syntax check: `python -c 'import yaml; yaml.safe_load(open(".github/workflows/deploy.yml"))'`.
-- [ ] 5.3 Commit: `deploy-via-nginx-director: Add deploy workflow on push to main`
+- [x] 5.2 Local syntax check: `python -c 'import yaml; yaml.safe_load(open(".github/workflows/deploy.yml"))'`.
+- [x] 5.3 Commit: `deploy-via-nginx-director: Add deploy workflow on push to main`
 - [ ] 5.4 Push the feature branch; open a PR; confirm `tests`, `lint`, `openspec` workflows run on GitHub-hosted runners (deploy must NOT trigger on PR).
 - [ ] 5.5 Merge the PR. Watch the `Deploy` workflow fire on the self-hosted runner. Confirm green and that the container has a fresh `Created` timestamp.
 - [ ] 5.6 Manually re-trigger via `gh workflow run deploy.yml --ref main`; confirm `workflow_dispatch` works.
