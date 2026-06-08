@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Mobile hand surfaces a floating **↓ N more** indicator chip when one or more hand cards are hidden beneath the sticky action bar (typically a 16+ card hand after a forced pickup). Tap the chip to smooth-scroll to the end of the hand. `#m-game` reserves bottom padding so the last row clears the action bar at the bottom of the page. [mobile-hand-scroll-hint]
 - When the host clicks **Start game** alone in a room, a friendly prompt offers a one-tap path: **Add 1 bot**, **Add 2 bots**, **Add 3 bots**, or **Back to lobby**. Confirming adds the bots sequentially then starts the round. No prompt if any other seat is already filled. Both desktop and mobile. [solo-start-bot-prompt]
 - **Mobile UI** at `/m` (and `/m/<code>` for direct join). Tap-only, fan-out hand at the bottom, sticky Play/Pickup action bar, opponents strip, bottom-sheet quit modal, `?` rules sheet, dedicated rename sheet. 390px portrait minimum (iPhone 14). Shares all REST + WebSocket endpoints with the desktop UI; the desktop UI at `/` is unchanged. [mobile-ui]
 - Host can **remove a bot seat** from the lobby via a per-row Remove button (`POST /api/rooms/{code}/remove_bot`). Lobby-only; host-only. [lobby-rename-and-remove-bots]
