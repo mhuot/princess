@@ -1,8 +1,8 @@
 # Smoke test report
 
-_Generated 2026-06-08 23:09:00 UTC_  
+_Generated 2026-06-08 23:45:18 UTC_  
 _Tool: Playwright (Chromium headless)_  
-_Base URL: http://127.0.0.1:8000_
+_Base URL: https://princess.geekpark.com_
 
 **Result: 34/34 checks passed.**
 
@@ -10,23 +10,23 @@ _Base URL: http://127.0.0.1:8000_
 
 ### ✅ Mobile UA hitting / lands on /m
 
-> url='http://127.0.0.1:8000/m' title='Princess — mobile'
+> url='https://princess.geekpark.com/m' title='Princess — mobile'
 
 ![Mobile UA hitting / lands on /m](screens/redirect-mobile-to-m.png)
 
 ### ✅ Mobile UA hitting /room/AB12 lands on /m/AB12
 
-> url='http://127.0.0.1:8000/m/AB12'
+> url='https://princess.geekpark.com/m/AB12'
 
 ### ✅ Desktop UA hitting / stays on /
 
-> url='http://127.0.0.1:8000/' title='Princess Card Game'
+> url='https://princess.geekpark.com/' title='Princess Card Game'
 
 ![Desktop UA hitting / stays on /](screens/redirect-desktop-stays.png)
 
 ### ✅ ?desktop=1 keeps mobile UA on the desktop UI
 
-> url='http://127.0.0.1:8000/?desktop=1' title='Princess Card Game'
+> url='https://princess.geekpark.com/?desktop=1' title='Princess Card Game'
 
 ![?desktop=1 keeps mobile UA on the desktop UI](screens/redirect-desktop-query-override.png)
 
@@ -38,11 +38,11 @@ _Base URL: http://127.0.0.1:8000_
 
 ### ✅ Tapping 'View desktop site' sets cookie + lands on /
 
-> cookie='1' url='http://127.0.0.1:8000/' title='Princess Card Game'
+> cookie='1' url='https://princess.geekpark.com/' title='Princess Card Game'
 
 ### ✅ Cookie keeps mobile UA on / on subsequent visits
 
-> url='http://127.0.0.1:8000/' title='Princess Card Game'
+> url='https://princess.geekpark.com/' title='Princess Card Game'
 
 ### ✅ Desktop footer has 'Mobile site' link
 
@@ -50,13 +50,13 @@ _Base URL: http://127.0.0.1:8000_
 
 ### ✅ Tapping 'Mobile site' clears cookie + lands on /m
 
-> cookie_cleared=True url='http://127.0.0.1:8000/m' title='Princess — mobile' cookies={}
+> cookie_cleared=True url='https://princess.geekpark.com/m' title='Princess — mobile' cookies={}
 
 ## deep-link-auto-join (8/8)
 
 ### ✅ Tier 3: focused view appears with no saved name
 
-> focused_visible=True landing_hidden=True btn='Join room RJS0'
+> focused_visible=True landing_hidden=True btn='Join room 2O9Z'
 
 ![Tier 3: focused view appears with no saved name](screens/auto-join-focused-view.png)
 
@@ -84,7 +84,7 @@ _Base URL: http://127.0.0.1:8000_
 
 ### ✅ Session sentinel persisted after join
 
-> sentinel='{"code":"RJS0","pid":"bLbcH2Pn5-E","name":"Mike"}'
+> sentinel='{"code":"2O9Z","pid":"oGgqTL7NWoY","name":"Mike"}'
 
 ### ✅ Failure (404) falls back to landing with code prefilled + error
 
@@ -96,7 +96,7 @@ _Base URL: http://127.0.0.1:8000_
 
 ### ✅ Desktop lobby shows Share link button
 
-> Room QJ25
+> Room I1YT
 
 ![Desktop lobby shows Share link button](screens/share-desktop-lobby.png)
 
@@ -108,11 +108,11 @@ _Base URL: http://127.0.0.1:8000_
 
 ### ✅ Desktop clipboard URL matches /room/<code>
 
-> clipboard='http://127.0.0.1:8000/room/QJ25' expected='http://127.0.0.1:8000/room/QJ25'
+> clipboard='https://princess.geekpark.com/room/I1YT' expected='https://princess.geekpark.com/room/I1YT'
 
 ### ✅ Mobile lobby shows ↗ share button
 
-> Room 26JP
+> Room R1ZQ
 
 ![Mobile lobby shows ↗ share button](screens/share-mobile-lobby.png)
 
@@ -128,13 +128,13 @@ _Base URL: http://127.0.0.1:8000_
 
 ### ✅ Mobile clipboard URL matches /m/<code>
 
-> clipboard='http://127.0.0.1:8000/m/26JP' expected='http://127.0.0.1:8000/m/26JP'
+> clipboard='https://princess.geekpark.com/m/R1ZQ' expected='https://princess.geekpark.com/m/R1ZQ'
 
 ## mobile-discard-count (4/4)
 
 ### ✅ Created mobile room
 
-> Room O393
+> Room S6A6
 
 ### ✅ Setup phase visible (Discard count won't render here, but pile-area UI not yet)
 
@@ -144,7 +144,7 @@ _Base URL: http://127.0.0.1:8000_
 
 ### ✅ Playing phase shows Deck and Discard stats
 
-> deck='24' discard='1'
+> deck='25' discard='0'
 
 ![Playing phase shows Deck and Discard stats](screens/discard-playing-phase.png)
 
