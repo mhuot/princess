@@ -111,6 +111,17 @@
     </main>
 
     <!-- Bottom-sheet dialogs -->
+    <dialog id="m-solo-sheet" class="m-sheet" aria-labelledby="m-solo-title">
+      <h3 id="m-solo-title">You're alone in the room.</h3>
+      <p class="m-muted">Add some bots and we'll start the round right after.</p>
+      <div id="m-solo-actions" style="display: flex; flex-direction: column; gap: 0.4rem; margin: 0.5rem 0;">
+        <button type="button" id="m-solo-add-1">Add 1 bot</button>
+        <button type="button" id="m-solo-add-2">Add 2 bots</button>
+        <button type="button" id="m-solo-add-3" class="m-primary">Add 3 bots</button>
+      </div>
+      <button type="button" id="m-solo-cancel" class="m-cancel">Back to lobby</button>
+    </dialog>
+
     <dialog id="m-quit-sheet" class="m-sheet" aria-labelledby="m-quit-title">
       <h3 id="m-quit-title">Leave this round</h3>
       <p class="m-muted">Pick what should happen to your seat.</p>

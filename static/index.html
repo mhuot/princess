@@ -152,6 +152,17 @@
       </section>
     </main>
 
+    <dialog id="solo-start-modal" aria-labelledby="solo-start-title">
+      <h3 id="solo-start-title">You're alone in the room.</h3>
+      <p class="muted">Add some bots and we'll start the round right after.</p>
+      <div class="action-row" style="flex-direction: column; gap: 0.5rem;">
+        <button type="button" id="solo-add-1">Add 1 bot</button>
+        <button type="button" id="solo-add-2">Add 2 bots</button>
+        <button type="button" id="solo-add-3">Add 3 bots</button>
+      </div>
+      <button type="button" id="solo-cancel" class="quit-cancel">Back to lobby</button>
+    </dialog>
+
     <dialog id="quit-dialog" aria-labelledby="quit-dialog-title">
       <h3 id="quit-dialog-title">Leave this round</h3>
       <p id="quit-dialog-body" class="muted">Pick what should happen to your seat.</p>

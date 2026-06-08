@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- When the host clicks **Start game** alone in a room, a friendly prompt offers a one-tap path: **Add 1 bot**, **Add 2 bots**, **Add 3 bots**, or **Back to lobby**. Confirming adds the bots sequentially then starts the round. No prompt if any other seat is already filled. Both desktop and mobile. [solo-start-bot-prompt]
 - **Mobile UI** at `/m` (and `/m/<code>` for direct join). Tap-only, fan-out hand at the bottom, sticky Play/Pickup action bar, opponents strip, bottom-sheet quit modal, `?` rules sheet, dedicated rename sheet. 390px portrait minimum (iPhone 14). Shares all REST + WebSocket endpoints with the desktop UI; the desktop UI at `/` is unchanged. [mobile-ui]
 - Host can **remove a bot seat** from the lobby via a per-row Remove button (`POST /api/rooms/{code}/remove_bot`). Lobby-only; host-only. [lobby-rename-and-remove-bots]
 - Any seated player can **rename themselves** at any time — inline input on their own row in the lobby, or a Rename button in the game header during a round (`POST /api/rooms/{code}/rename`). [lobby-rename-and-remove-bots]

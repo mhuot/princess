@@ -19,6 +19,7 @@ const state = {
   phase: null,
   selectedIndices: new Set(),
   setupSelected: new Set(),
+  lastRoom: null,
 };
 
 const $ = (id) => document.getElementById(id);
@@ -32,6 +33,10 @@ document.addEventListener("DOMContentLoaded", () => {
   $("m-join-btn").addEventListener("click", joinRoom);
   $("m-add-bot-btn").addEventListener("click", addBot);
   $("m-start-btn").addEventListener("click", startGame);
+  $("m-solo-add-1").addEventListener("click", () => { $("m-solo-sheet").close(); mAddBotsThenStart(1); });
+  $("m-solo-add-2").addEventListener("click", () => { $("m-solo-sheet").close(); mAddBotsThenStart(2); });
+  $("m-solo-add-3").addEventListener("click", () => { $("m-solo-sheet").close(); mAddBotsThenStart(3); });
+  $("m-solo-cancel").addEventListener("click", () => $("m-solo-sheet").close());
   $("m-lock-in-btn").addEventListener("click", lockInSetup);
   $("m-play-btn").addEventListener("click", playSelected);
   $("m-pickup-btn").addEventListener("click", pickupPile);
@@ -125,6 +130,19 @@ async function addBot() {
 }
 
 async function startGame() {
+  if (state.lastRoom?.seats?.length === 1) {
+    $("m-solo-sheet").showModal();
+    return;
+  }
+  try { await postJSON(`/api/rooms/${state.code}/start`, { host_pid: state.pid }); }
+  catch (e) { showError(e.message); }
+}
+
+async function mAddBotsThenStart(n) {
+  for (let i = 0; i < n; i++) {
+    try { await postJSON(`/api/rooms/${state.code}/bot`, { host_pid: state.pid }); }
+    catch (e) { showError(e.message); return; }
+  }
   try { await postJSON(`/api/rooms/${state.code}/start`, { host_pid: state.pid }); }
   catch (e) { showError(e.message); }
 }
@@ -137,6 +155,7 @@ async function rematch() {
 // --- Lobby render ----------------------------------------------------------
 
 function renderLobby(room) {
+  state.lastRoom = room;
   $("m-game").hidden = true;
   $("m-setup").hidden = true;
   $("m-game-over").hidden = true;
