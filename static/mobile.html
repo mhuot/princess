@@ -85,7 +85,15 @@
           </div>
         </div>
         <div id="m-your-table" class="m-your-table" role="list" aria-label="Your face-up and face-down cards"></div>
-        <div id="m-hand-fan" class="m-hand-fan" role="list" aria-label="Your hand"></div>
+        <div id="m-hand-toolbar" class="m-hand-toolbar">
+          <button type="button" id="m-sort-btn" aria-pressed="true">Sort: rank</button>
+          <span id="m-hand-count" class="m-muted">0 cards</span>
+        </div>
+        <div id="m-hand-wrap" class="m-hand-wrap">
+          <button type="button" id="m-hand-prev" class="m-hand-edge prev" aria-label="Previous cards">‹</button>
+          <div id="m-hand-row" class="m-hand-row" role="list" aria-label="Your hand"></div>
+          <button type="button" id="m-hand-next" class="m-hand-edge next" aria-label="More cards">›</button>
+        </div>
         <div class="m-action-bar">
           <button type="button" id="m-pickup-btn" class="m-danger" disabled>Pick up</button>
           <button type="button" id="m-play-btn" class="m-primary" disabled>Play selected</button>
