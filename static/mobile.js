@@ -86,6 +86,10 @@ document.addEventListener("DOMContentLoaded", () => {
   $("m-game-room-code").addEventListener("click", copyRoomCode);
   $("m-share-btn-lobby").addEventListener("click", () => shareRoomLink("m-share-btn-lobby"));
   $("m-share-btn-game").addEventListener("click", () => shareRoomLink("m-share-btn-game"));
+  document.getElementById("m-switch-to-desktop")?.addEventListener("click", () => {
+    document.cookie = "princess_prefer_desktop=1; Path=/";
+    location.href = "/";
+  });
 
   const m = location.pathname.match(/^\/m\/([A-Z0-9]{4})$/i);
   if (m) $("m-code").value = m[1].toUpperCase();

@@ -43,6 +43,9 @@ document.addEventListener("DOMContentLoaded", () => {
   $("quit-btn").addEventListener("click", quitGame);
   $("rename-btn").addEventListener("click", promptRenameForGame);
   $("share-link-btn").addEventListener("click", shareRoomLink);
+  document.getElementById("switch-to-mobile")?.addEventListener("click", () => {
+    document.cookie = "princess_prefer_desktop=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT";
+  });
   $("quit-dialog-cancel").addEventListener("click", () => $("quit-dialog").close());
   $("quit-dialog").addEventListener("close", () => {});
 

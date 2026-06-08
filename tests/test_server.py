@@ -34,6 +34,82 @@ def test_mobile_routes_serve_mobile_html():
     assert res2.text == res.text  # same file
 
 
+# --- UA-based mobile redirect tests ----------------------------------------
+
+
+_DESKTOP_UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+)
+_IPHONE_UA = (
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+    "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+)
+_IPAD_UA = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+)
+
+
+def test_index_serves_desktop_for_desktop_ua():
+    client = _client()
+    res = client.get("/", headers={"user-agent": _DESKTOP_UA})
+    assert res.status_code == 200
+    assert "Princess Card Game" in res.text
+
+
+def test_index_redirects_mobile_ua_to_m():
+    client = _client()
+    res = client.get("/", headers={"user-agent": _IPHONE_UA}, follow_redirects=False)
+    assert res.status_code == 302
+    assert res.headers["location"] == "/m"
+
+
+def test_room_page_redirects_mobile_ua():
+    client = _client()
+    res = client.get(
+        "/room/AB12",
+        headers={"user-agent": _IPHONE_UA},
+        follow_redirects=False,
+    )
+    assert res.status_code == 302
+    assert res.headers["location"] == "/m/AB12"
+
+
+def test_desktop_query_override_blocks_redirect():
+    client = _client()
+    res = client.get(
+        "/?desktop=1",
+        headers={"user-agent": _IPHONE_UA},
+        follow_redirects=False,
+    )
+    assert res.status_code == 200
+    assert "Princess Card Game" in res.text
+
+
+def test_cookie_override_blocks_redirect():
+    client = _client()
+    client.cookies.set("princess_prefer_desktop", "1")
+    res = client.get("/", headers={"user-agent": _IPHONE_UA}, follow_redirects=False)
+    assert res.status_code == 200
+    assert "Princess Card Game" in res.text
+
+
+def test_m_serves_mobile_for_desktop_ua():
+    client = _client()
+    res = client.get("/m", headers={"user-agent": _DESKTOP_UA})
+    assert res.status_code == 200
+    assert "Princess — mobile" in res.text
+
+
+def test_ipad_serves_desktop():
+    # iPad (since iPadOS 13) reports a desktop-like UA with no "Mobi".
+    client = _client()
+    res = client.get("/", headers={"user-agent": _IPAD_UA}, follow_redirects=False)
+    assert res.status_code == 200
+    assert "Princess Card Game" in res.text
+
+
 def test_create_and_join_room():
     client = _client()
     res = client.post("/api/rooms", json={"name": "Ada"})

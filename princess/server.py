@@ -26,8 +26,8 @@ import os
 import secrets
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -79,13 +79,26 @@ def _new_pid() -> str:
     return secrets.token_urlsafe(8)
 
 
+def _wants_mobile_redirect(request: Request) -> bool:
+    """True iff a desktop route should 302 to its /m equivalent."""
+    if request.query_params.get("desktop") == "1":
+        return False
+    if request.cookies.get("princess_prefer_desktop") == "1":
+        return False
+    return "Mobi" in request.headers.get("user-agent", "")
+
+
 @app.get("/")
-async def index() -> FileResponse:
+async def index(request: Request):
+    if _wants_mobile_redirect(request):
+        return RedirectResponse("/m", status_code=302)
     return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/room/{code}")
-async def room_page(code: str) -> FileResponse:  # pylint: disable=unused-argument
+async def room_page(request: Request, code: str):  # pylint: disable=unused-argument
+    if _wants_mobile_redirect(request):
+        return RedirectResponse(f"/m/{code}", status_code=302)
     return FileResponse(STATIC_DIR / "index.html")
 
 
