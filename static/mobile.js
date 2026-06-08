@@ -84,8 +84,8 @@ document.addEventListener("DOMContentLoaded", () => {
   $("m-rename-cancel").addEventListener("click", () => $("m-rename-sheet").close());
   $("m-rename-submit").addEventListener("click", submitRename);
   $("m-game-room-code").addEventListener("click", copyRoomCode);
-  $("m-share-btn-lobby").addEventListener("click", shareRoomLink);
-  $("m-share-btn-game").addEventListener("click", shareRoomLink);
+  $("m-share-btn-lobby").addEventListener("click", () => shareRoomLink("m-share-btn-lobby"));
+  $("m-share-btn-game").addEventListener("click", () => shareRoomLink("m-share-btn-game"));
 
   const m = location.pathname.match(/^\/m\/([A-Z0-9]{4})$/i);
   if (m) $("m-code").value = m[1].toUpperCase();
@@ -702,7 +702,7 @@ async function copyRoomCode() {
   catch { /* clipboard not available — silent */ }
 }
 
-async function shareRoomLink() {
+async function shareRoomLink(buttonId) {
   if (!state.code) return;
   const url = `${location.origin}/m/${state.code}`;
   const payload = {
@@ -716,17 +716,20 @@ async function shareRoomLink() {
   }
   try {
     await navigator.clipboard.writeText(url);
-    flashShared();
+    if (buttonId) flashShareButton(buttonId);
   } catch { /* silent */ }
 }
 
-function flashShared() {
-  const el = $("m-lobby-error");
-  if (!el) return;
-  const prev = el.textContent;
-  el.textContent = "Link copied!";
-  el.hidden = false;
-  setTimeout(() => { el.hidden = true; el.textContent = prev; }, 1500);
+function flashShareButton(buttonId) {
+  const btn = $(buttonId);
+  if (!btn || btn.dataset.flashing === "1") return;
+  btn.dataset.flashing = "1";
+  const prev = btn.textContent;
+  btn.textContent = "✓";
+  setTimeout(() => {
+    btn.textContent = prev;
+    delete btn.dataset.flashing;
+  }, 1500);
 }
 
 function sendAction(msg) {
