@@ -39,6 +39,8 @@ The House rules panel SHALL contain at minimum the **Reverse rank** `<select>` w
 
 Changing the dropdown SHALL trigger a `POST /api/rooms/<code>/config` containing `{"reverse_rank": <int>}`. Non-hosts see the control disabled with the existing `#config-readonly-note`.
 
+When the host clicks **Start game**, the frontend SHALL inspect `room.seats.length` from the most recent lobby broadcast. If exactly **1** (the host is alone), the frontend SHALL open a centered `<dialog id="solo-start-modal">` modal titled "You're alone in the room." offering three primary actions — **Add 1 bot**, **Add 2 bots**, **Add 3 bots** — plus a **Back to lobby** button. On a primary action, the frontend SHALL sequentially `POST /api/rooms/{code}/bot` `N` times and, on success, `POST /api/rooms/{code}/start`. On any `POST /bot` failure, the frontend SHALL surface the error in the existing lobby-error slot and SHALL NOT POST `/start`. If `room.seats.length >= 2`, the frontend SHALL NOT open the modal and SHALL post `/start` directly as today.
+
 #### Scenario: Non-host sees disabled control
 
 - **WHEN** a non-host renders the lobby
@@ -58,6 +60,31 @@ Changing the dropdown SHALL trigger a `POST /api/rooms/<code>/config` containing
 
 - **WHEN** the House rules panel is rendered
 - **THEN** there is no element with id `cfg-same-on-reverse`
+
+#### Scenario: Solo start opens the bot prompt
+
+- **WHEN** the host is the only seated player and clicks Start game
+- **THEN** the `#solo-start-modal` `<dialog>` opens with three "Add N bot(s)" buttons and a "Back to lobby" button
+
+#### Scenario: Add 2 bots and start
+
+- **WHEN** the host clicks "Add 2 bots" in the solo-start modal
+- **THEN** the frontend POSTs `/api/rooms/<code>/bot` twice in sequence, then POSTs `/api/rooms/<code>/start`, then the modal closes
+
+#### Scenario: Back to lobby leaves the room unchanged
+
+- **WHEN** the host clicks "Back to lobby" in the solo-start modal
+- **THEN** the modal closes; no POSTs are made; the host remains on the lobby in its prior state
+
+#### Scenario: No prompt when a bot is already seated
+
+- **WHEN** the host has one bot in the room and clicks Start game
+- **THEN** the modal does NOT open and `/api/rooms/<code>/start` is posted as today
+
+#### Scenario: Bot add failure aborts auto-start
+
+- **WHEN** the host clicks "Add 3 bots" and the second `POST /bot` fails (e.g., 409 room full)
+- **THEN** the frontend surfaces the error in the lobby-error slot, does NOT post `/start`, and leaves any successfully-added bots in the room
 
 #### Scenario: Host sees Remove on bot rows
 
