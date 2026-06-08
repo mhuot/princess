@@ -35,7 +35,7 @@ The mobile game view SHALL stack vertically (top to bottom):
 
 1. **Top bar** — room code (tap to copy), `?` rules icon, **Rename** button, **Quit** button, status ticker (single-line newest action).
 2. **Opponents strip** — single horizontal row, scrolls if needed; each opponent chip SHALL render, in vertical order: name + (bot) tag, current-turn / finished indicator, a **face-up cards row** showing the cards in `view.players[i].face_up` as small mini cards (about 22 × 32 px), and a counts line reading `hand N · down N`. Face-up cards whose rank equals `2`, `10`, or `view.config.reverse_rank` SHALL render with the wild `★` corner glyph. When an opponent has zero face-up cards remaining, the face-up row SHALL collapse to no extra height.
-3. **Pile area** — centered: deck count, discard pile top card (full-size), rule indicator below.
+3. **Pile area** — three columns: a **left stats column** containing a **Deck** count (from `view.deck_count`) stacked above a **Discard** count (from `view.pile_size`); the **center pile card** (full-size, displaying the discard's top); and a **right stats column** containing the **Rule** indicator. Each stat SHALL render a small dim label above a larger accent-colored value. The Discard value SHALL always render — including `0` when the discard pile is empty.
 4. **Your table** — face-up and face-down cards in a single mini-row (same as desktop layout, just smaller).
 5. **Hand toolbar** — a small row above the hand containing a **Sort** toggle button (label flips between `Sort: rank` and `Sort: off`) and a **count** badge (`X cards`). `aria-pressed` reflects the sort state.
 6. **Hand (multi-row wrapping)** — a flex row with `flex-wrap: wrap` and `justify-content: flex-start`. Each card is a button rendered with a fixed height of approximately 90 px and a width computed via `calc()` so that **5 cards fit per row at the default viewport width** (390px). Cards flow left-to-right, then wrap to a new row. There is no horizontal scrolling, no scroll-snap, no chevron edge indicators, and no gradient edge fades.
@@ -49,7 +49,15 @@ Cards-per-row breakpoints SHALL be:
 
 In all three modes, the resulting card width SHALL be ≥ 44 px so the tap target meets the accessibility floor.
 
-If the wrapped hand exceeds the available vertical space (rare — only after picking up the pile with a large discard), the page SHALL scroll vertically; the sticky action bar SHALL remain visible at the bottom of the viewport.
+The `#m-game` container SHALL reserve bottom padding equal to the action-bar height plus the safe-area inset plus a small buffer (`padding-bottom: calc(var(--m-action-h) + env(safe-area-inset-bottom) + 12px)`) so that when the page is scrolled to the bottom, the last hand row clears the action bar.
+
+If the wrapped hand exceeds the available vertical space, the page SHALL scroll vertically; the sticky action bar SHALL remain visible at the bottom of the viewport. The frontend SHALL surface a **floating "↓ N more" indicator chip** when at least one hand card is hidden beneath the action bar's top edge:
+
+- The chip SHALL be positioned `fixed`, anchored just above the action bar (vertically) and centered horizontally.
+- The chip's label SHALL include the exact count of cards whose top edge is below the action bar's top edge.
+- The chip SHALL be tappable; tapping it SHALL smooth-scroll the page so the last hand card becomes visible above the action bar.
+- The chip SHALL be hidden (via the `hidden` attribute with a paired CSS `[hidden] { display: none !important; }` override) whenever every hand card is fully visible above the action bar.
+- The implementation SHALL use an `IntersectionObserver` on a sentinel element appended at the end of `#m-hand-row` with a `rootMargin` that treats the action bar's top edge as the bottom of the observed area.
 
 The hand SHALL handle multi-rank selection identically to the desktop UI (cards must share rank; selecting a different rank clears the prior selection). When sort is ON (default), the hand SHALL be rendered in rank-ascending order, breaking ties by the card's original server-side index (stable). Selecting a sorted card SHALL play the correct server-side index, not the rendered-position index.
 
@@ -72,6 +80,21 @@ The hand SHALL handle multi-rank selection identically to the desktop UI (cards 
 
 - **WHEN** an opponent is finished (`p.finished === true`)
 - **THEN** the entire chip (including the face-up row) renders with the `.finished` opacity dimming
+
+#### Scenario: Pile area shows Deck above Discard in the left stats column
+
+- **WHEN** the player views the game with `deck_count: 12` and `pile_size: 4`
+- **THEN** the left stats column shows two stacked stats — `Deck 12` on top and `Discard 4` below — both with the same label/value visual treatment
+
+#### Scenario: Discard count renders 0 when pile is empty
+
+- **WHEN** the discard pile has just been burned or is empty (`pile_size: 0`)
+- **THEN** the discard stat reads `Discard 0` (not hidden, not blank)
+
+#### Scenario: Discard count updates on broadcast
+
+- **WHEN** the server broadcasts a new state with `pile_size` changed from 5 to 6
+- **THEN** the next render of `#m-discard-count` displays `6`
 
 #### Scenario: Five cards fit per row at default width
 
@@ -103,6 +126,26 @@ The hand SHALL handle multi-rank selection identically to the desktop UI (cards 
 - **WHEN** the player has 20 cards in hand at viewport 390 × 844
 - **THEN** the hand renders as 4 rows of 5 cards; the page scrolls vertically to reveal lower rows; the sticky action bar remains visible
 
+#### Scenario: Scroll hint visible when cards are hidden under the action bar
+
+- **WHEN** the player has 20 cards in hand at viewport 390 × 844 and the page is scrolled to the top
+- **THEN** `#m-hand-scroll-hint` is visible and its label includes a number greater than zero (e.g., "↓ 5 more")
+
+#### Scenario: Tap on scroll hint jumps to the end
+
+- **WHEN** the user taps `#m-hand-scroll-hint`
+- **THEN** the page smooth-scrolls so the last hand card is visible above the action bar; the chip's visibility is reassessed and hides if all cards are now visible
+
+#### Scenario: Scroll hint hidden when the whole hand fits
+
+- **WHEN** the player has 8 cards in hand at viewport 390 × 844
+- **THEN** the entire hand fits above the action bar and `#m-hand-scroll-hint` is hidden (`hidden` attribute set)
+
+#### Scenario: Bottom padding clears the last row of the action bar
+
+- **WHEN** the player scrolls to the very bottom of the page with a 20-card hand
+- **THEN** the last hand row sits fully above the action bar's top edge with at least 12 px of vertical breathing room
+
 #### Scenario: Sort toggle reorders the hand
 
 - **WHEN** the user taps the **Sort** button while sort is OFF
@@ -130,7 +173,7 @@ The hand SHALL handle multi-rank selection identically to the desktop UI (cards 
 
 #### Scenario: Tap targets meet accessibility size
 
-- **WHEN** any control (action button, hand card, sort button, opponent chip, top-bar button) is rendered
+- **WHEN** any control (action button, hand card, sort button, opponent chip, top-bar button, scroll-hint chip) is rendered
 - **THEN** its bounding box is at least 44 × 44 logical pixels
 
 ### Requirement: Mobile lobby
@@ -230,3 +273,43 @@ The mobile UI SHALL NOT include a `/logs` footer link. The mobile UI SHALL repla
 
 - **WHEN** the user taps the `?` icon in the mobile top bar
 - **THEN** a sheet opens listing 2 (wild reset), 10 (burn), and the reverse rank as the three wilds
+
+### Requirement: Share room link (mobile)
+
+The mobile UI SHALL include a **Share** affordance — typically a small icon button labelled `↗` with `aria-label="Share room link"` — in two places:
+
+1. In the **mobile lobby**, positioned next to the room-code line.
+2. In the **game-view top bar**, positioned alongside the existing room-code chip / Rename / Quit buttons.
+
+Tapping either Share affordance SHALL build a deep-link URL of the form `<location.origin>/m/<state.code>` and attempt the following chain:
+
+1. If `navigator.share` is available, call `navigator.share({ title: "Princess Card Game", text: "Join my Princess room <code>:", url: <link> })`. On success, no further confirmation is needed. On `AbortError` (user dismissal), return silently. On other errors, fall through to step 2.
+2. Call `navigator.clipboard.writeText(<link>)`. On success, briefly show a confirmation (button flash or short toast) so the user knows the URL is on the clipboard.
+3. On any failure of both steps, the operation SHALL be a silent no-op.
+
+The existing tap-to-copy on the game-view room-code chip — which copies *just the code* (`state.code`) — remains in place for voice-dictation flows. The new Share button is additive.
+
+#### Scenario: Mobile share invokes navigator.share
+
+- **WHEN** the user taps the lobby Share button on a mobile browser with `navigator.share`
+- **THEN** `navigator.share` is invoked with URL `<origin>/m/<state.code>` and no clipboard write occurs unless the share fails
+
+#### Scenario: Mobile share falls back to clipboard
+
+- **WHEN** the user taps the lobby Share button on a browser without `navigator.share`
+- **THEN** the URL `<origin>/m/<state.code>` is written to the clipboard and a transient confirmation appears
+
+#### Scenario: Mobile share in game view top bar works
+
+- **WHEN** the user taps the game-view top bar Share button while in a live round
+- **THEN** the same share/clipboard chain runs against the URL `<origin>/m/<state.code>`
+
+#### Scenario: Code-only tap-to-copy still works
+
+- **WHEN** the user taps the room-code *chip* (not the Share button) in the game-view top bar
+- **THEN** only the bare code (e.g., `"AB12"`) is copied to the clipboard, not a URL
+
+#### Scenario: Share button respects accessibility size
+
+- **WHEN** the lobby or game-view Share button is rendered
+- **THEN** its bounding box is at least 44 × 44 logical pixels
