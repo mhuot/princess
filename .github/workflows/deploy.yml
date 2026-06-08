@@ -1,0 +1,33 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-princess
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, princess]
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build and start container
+        run: docker compose up -d --build
+
+      - name: Wait for uvicorn to bind
+        run: sleep 5
+
+      - name: Smoke test
+        run: |
+          docker exec princess python -c "import urllib.request, sys; r = urllib.request.urlopen('http://127.0.0.1:8000/', timeout=10); print('GET / =>', r.status); sys.exit(0 if r.status == 200 else 1)"
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker compose logs --tail=100 princess
