@@ -74,9 +74,15 @@
         <p id="m-status-line" class="m-status" aria-live="polite"></p>
         <div id="m-opponents" class="m-opponents" aria-label="Opponents"></div>
         <div class="m-pile-area">
-          <div class="m-pile-stat">
-            <span class="m-stat-label">Deck</span>
-            <span id="m-deck-count">0</span>
+          <div class="m-pile-stat-col">
+            <div class="m-pile-stat">
+              <span class="m-stat-label">Deck</span>
+              <span id="m-deck-count" class="m-stat-value">0</span>
+            </div>
+            <div class="m-pile-stat">
+              <span class="m-stat-label">Discard</span>
+              <span id="m-discard-count" class="m-stat-value">0</span>
+            </div>
           </div>
           <div id="m-pile-card" class="m-pile-card empty">empty</div>
           <div class="m-pile-stat">

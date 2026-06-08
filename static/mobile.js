@@ -363,6 +363,7 @@ function renderPile(view) {
     pile.textContent = "empty";
   }
   $("m-deck-count").textContent = String(view.deck_count);
+  $("m-discard-count").textContent = String(view.pile_size || 0);
   const rule = $("m-rule-indicator");
   const reverse = view.config?.reverse_rank ?? 5;
   const reverseLabel = rankLabel(reverse);

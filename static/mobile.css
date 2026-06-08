@@ -223,7 +223,8 @@ input {
 }
 .m-pile-stat { text-align: center; min-width: 64px; }
 .m-stat-label { display: block; color: var(--ink-dim); font-size: 0.7rem; }
-.m-pile-stat span:last-child { font-size: 1.2rem; font-weight: 700; color: var(--accent); }
+.m-stat-value { font-size: 1.2rem; font-weight: 700; color: var(--accent); }
+.m-pile-stat-col { display: flex; flex-direction: column; gap: 0.4rem; align-items: center; }
 .m-pile-card {
   width: var(--m-pile-w);
   height: var(--m-pile-h);
