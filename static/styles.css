@@ -170,6 +170,13 @@ button:disabled {
   border-radius: 8px;
 }
 
+#focused-join { margin-top: 1rem; }
+#focused-join h2 { color: var(--accent); margin-bottom: 0.5rem; }
+#focused-join #focused-code { letter-spacing: 0.1em; font-family: ui-monospace, monospace; }
+#focused-join input { width: 100%; margin-bottom: 0.75rem; }
+#focused-join button { width: 100%; padding: 0.75rem 1rem; font-size: 1rem; }
+#focused-join button:disabled { background: var(--surface-2); color: var(--ink-dim); cursor: not-allowed; }
+
 #seat-list {
   list-style: none;
   padding: 0;

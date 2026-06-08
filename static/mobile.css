@@ -95,6 +95,13 @@ input {
 .m-tagline { color: var(--ink-dim); margin: 0 0 1.25rem; font-size: 0.85rem; }
 #m-landing label { display: block; margin: 0.75rem 0 0.25rem; font-weight: 600; }
 #m-landing button { width: 100%; margin-top: 0.5rem; }
+
+#m-focused-join { padding: 1rem 0; }
+#m-focused-join h2 { color: var(--accent); margin: 0.25rem 0 0.75rem; font-size: 1.3rem; }
+#m-focused-join #m-focused-code { letter-spacing: 0.1em; font-family: ui-monospace, monospace; }
+#m-focused-join label { display: block; margin: 0.75rem 0 0.25rem; font-weight: 600; }
+#m-focused-join button { width: 100%; margin-top: 0.75rem; }
+#m-focused-join button:disabled { background: var(--surface-2); color: var(--ink-dim); cursor: not-allowed; }
 .m-or { text-align: center; color: var(--ink-dim); margin: 0.75rem 0; }
 .m-room-line { margin: 0.5rem 0; font-size: 1.1rem; display: flex; align-items: center; gap: 0.5rem; }
 .m-room-line strong { font-family: ui-monospace, SFMono-Regular, monospace; color: var(--accent); letter-spacing: 0.1em; }
@@ -540,6 +547,8 @@ input {
 .m-screen[hidden],
 #m-room[hidden],
 #m-host-controls[hidden],
+#m-focused-join[hidden],
+#focused-join[hidden],
 #m-game[hidden],
 #m-setup[hidden],
 #m-game-over[hidden],

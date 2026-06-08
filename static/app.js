@@ -49,11 +49,108 @@ document.addEventListener("DOMContentLoaded", () => {
   $("quit-dialog-cancel").addEventListener("click", () => $("quit-dialog").close());
   $("quit-dialog").addEventListener("close", () => {});
 
+  // Focused-view button is disabled until the trimmed name input has content.
+  $("focused-name").addEventListener("input", () => {
+    $("focused-join-btn").disabled = !$("focused-name").value.trim();
+  });
+  $("focused-join-btn").addEventListener("click", focusedJoinSubmit);
+
   const urlCode = (location.pathname.match(/^\/room\/([A-Z0-9]{4})$/i) || [])[1];
   if (urlCode) {
     $("room-code").value = urlCode.toUpperCase();
+    autoJoinFromUrl(urlCode.toUpperCase());
   }
 });
+
+function savePreferredName(name) {
+  try { localStorage.setItem("princess_name", name); } catch { /* best-effort */ }
+}
+
+function loadPreferredName() {
+  try { return localStorage.getItem("princess_name") || ""; } catch { return ""; }
+}
+
+function saveSession(code, pid, name) {
+  try {
+    sessionStorage.setItem(
+      "princess_session",
+      JSON.stringify({ code, pid, name })
+    );
+  } catch { /* best-effort */ }
+}
+
+function loadSession() {
+  try {
+    const raw = sessionStorage.getItem("princess_session");
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function clearSession() {
+  try { sessionStorage.removeItem("princess_session"); } catch { /* ignore */ }
+}
+
+async function joinRoomBy(code, name) {
+  const { pid } = await postJSON(`/api/rooms/${code}/join`, { name });
+  state.code = code;
+  state.pid = pid;
+  state.isHost = false;
+  savePreferredName(name);
+  saveSession(code, pid, name);
+  enterRoom();
+}
+
+async function autoJoinFromUrl(urlCode) {
+  // Tier 1: session sentinel — refresh-resume with stored pid.
+  const sentinel = loadSession();
+  if (sentinel && sentinel.code === urlCode && sentinel.pid) {
+    state.code = sentinel.code;
+    state.pid = sentinel.pid;
+    state.isHost = false; // host status restored after broadcast
+    enterRoom();
+    return;
+  }
+
+  // Tier 2: saved name — direct join.
+  const savedName = loadPreferredName();
+  if (savedName) {
+    try {
+      await joinRoomBy(urlCode, savedName);
+      return;
+    } catch (e) {
+      // Fall through to tier 3 only for transient/wrong-name errors? No —
+      // any failure (room missing, full, etc.) falls back to the full lobby
+      // with the error visible. This matches the manual-join failure UX.
+      showError("lobby-error", e.message);
+      return;
+    }
+  }
+
+  // Tier 3: focused name view.
+  $("focused-code").textContent = urlCode;
+  $("focused-join-btn").textContent = `Join room ${urlCode}`;
+  $("focused-join-btn").disabled = true;
+  $("lobby-form").hidden = true;
+  $("focused-join").hidden = false;
+  state._autoJoinCode = urlCode; // stash for focused-submit handler
+  $("focused-name").focus();
+}
+
+async function focusedJoinSubmit() {
+  const name = $("focused-name").value.trim();
+  if (!name || !state._autoJoinCode) return;
+  try {
+    await joinRoomBy(state._autoJoinCode, name);
+  } catch (e) {
+    // Failure: hide focused view, restore the standard lobby with the code
+    // prefilled and the error visible.
+    $("focused-join").hidden = true;
+    $("lobby-form").hidden = false;
+    $("room-code").value = state._autoJoinCode;
+    $("player-name").value = name;
+    showError("lobby-error", e.message);
+  }
+}
 
 function showError(elId, msg) {
   const el = $(elId);
@@ -83,6 +180,8 @@ async function createRoom() {
     state.code = code;
     state.pid = pid;
     state.isHost = true;
+    savePreferredName(name);
+    saveSession(code, pid, name);
     enterRoom();
   } catch (e) { showError("lobby-error", e.message); }
 }
@@ -93,11 +192,7 @@ async function joinRoom() {
   if (!name) return showError("lobby-error", "Enter your name first.");
   if (!code) return showError("lobby-error", "Enter a 4-character room code.");
   try {
-    const { pid } = await postJSON(`/api/rooms/${code}/join`, { name });
-    state.code = code;
-    state.pid = pid;
-    state.isHost = false;
-    enterRoom();
+    await joinRoomBy(code, name);
   } catch (e) { showError("lobby-error", e.message); }
 }
 
@@ -113,8 +208,19 @@ function enterRoom() {
 function openSocket() {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   state.socket = new WebSocket(`${proto}://${location.host}/ws/${state.code}/${state.pid}`);
-  state.socket.addEventListener("message", (e) => handleMessage(JSON.parse(e.data)));
+  state._wsGotMessage = false;
+  state.socket.addEventListener("message", (e) => {
+    state._wsGotMessage = true;
+    handleMessage(JSON.parse(e.data));
+  });
   state.socket.addEventListener("close", () => {
+    if (!state._wsGotMessage) {
+      // Tier-1 sentinel reconnect failed (unknown pid / evicted seat).
+      // Clear the sentinel and reload — the next pass will try tier 2.
+      clearSession();
+      location.reload();
+      return;
+    }
     $("waiting-message").textContent = "Disconnected. Refresh to reconnect.";
   });
 }
