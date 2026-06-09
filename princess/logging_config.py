@@ -24,15 +24,46 @@ from __future__ import annotations
 
 import collections
 import itertools
+import json
 import logging
+import logging.handlers
 import os
 import sys
 import threading
+import time
 
 LOG_FORMAT = "%(asctime)s [%(levelname)-5s] %(name)s: %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 DEFAULT_BUFFER_SIZE = 2000
+
+DEFAULT_LOG_MAX_BYTES = 10_485_760  # 10 MB
+DEFAULT_LOG_BACKUP_COUNT = 5
+
+_ROOM_LOGGER_PREFIX = "princess.room."
+
+
+def _room_code_from_logger(name: str) -> str | None:
+    """Return the room code embedded in a per-room logger name, or None."""
+    if name.startswith(_ROOM_LOGGER_PREFIX):
+        return name[len(_ROOM_LOGGER_PREFIX) :] or None
+    return None
+
+
+class JsonLineFormatter(logging.Formatter):
+    """Format log records as one JSON object per line (JSONL)."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload: dict[str, object] = {
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(record.created)),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "room": _room_code_from_logger(record.name),
+        }
+        if record.exc_info:
+            payload["exc_info"] = self.formatException(record.exc_info)
+        return json.dumps(payload, default=str)
 
 
 class RingBufferHandler(logging.Handler):
@@ -78,6 +109,10 @@ class RingBufferHandler(logging.Handler):
         with self._lock:
             self._buffer.clear()
 
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._buffer)
+
 
 # Singleton — modules can import this directly to read the buffer.
 LOG_BUFFER = RingBufferHandler()
@@ -111,11 +146,53 @@ def setup_logging(level: str | int | None = None) -> None:
     logging.getLogger("uvicorn.error").setLevel(logging.INFO)
     logging.getLogger("uvicorn.access").setLevel(logging.INFO)
 
-    logging.getLogger("princess").info(
-        "logging initialized — level=%s buffer=%d entries (in-memory)",
-        logging.getLevelName(resolved_level),
-        LOG_BUFFER.capacity,
-    )
+    file_path = _attach_file_handler(root, resolved_level)
+
+    if file_path:
+        logging.getLogger("princess").info(
+            "logging initialized — level=%s buffer=%d entries (in-memory) file=%s",
+            logging.getLevelName(resolved_level),
+            LOG_BUFFER.capacity,
+            file_path,
+        )
+    else:
+        logging.getLogger("princess").info(
+            "logging initialized — level=%s buffer=%d entries (in-memory)",
+            logging.getLevelName(resolved_level),
+            LOG_BUFFER.capacity,
+        )
+
+
+def _attach_file_handler(root: logging.Logger, resolved_level: int) -> str | None:
+    """Attach a RotatingFileHandler if PRINCESS_LOG_PATH is set; fail open."""
+    file_path = os.environ.get("PRINCESS_LOG_PATH", "").strip()
+    if not file_path:
+        return None
+    try:
+        max_bytes = int(os.environ.get("PRINCESS_LOG_MAX_BYTES", DEFAULT_LOG_MAX_BYTES))
+    except ValueError:
+        max_bytes = DEFAULT_LOG_MAX_BYTES
+    try:
+        backup_count = int(os.environ.get("PRINCESS_LOG_BACKUP_COUNT", DEFAULT_LOG_BACKUP_COUNT))
+    except ValueError:
+        backup_count = DEFAULT_LOG_BACKUP_COUNT
+
+    try:
+        file_handler = logging.handlers.RotatingFileHandler(
+            file_path,
+            maxBytes=max_bytes,
+            backupCount=backup_count,
+        )
+    except OSError as exc:
+        logging.getLogger("princess").warning(
+            "file log handler disabled — could not open %s: %s", file_path, exc
+        )
+        return None
+
+    file_handler.setLevel(resolved_level)
+    file_handler.setFormatter(JsonLineFormatter())
+    root.addHandler(file_handler)
+    return file_path
 
 
 def room_logger(code: str) -> logging.Logger:

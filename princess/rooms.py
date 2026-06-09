@@ -279,6 +279,9 @@ class RoomRegistry:
     def get(self, code: str) -> Room | None:
         return self._rooms.get(code.upper())
 
+    def __len__(self) -> int:
+        return len(self._rooms)
+
     async def remove(self, code: str) -> None:
         async with self._lock:
             self._rooms.pop(code, None)
