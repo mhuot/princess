@@ -623,6 +623,106 @@ def section_deep_link_auto_join(browser: Browser) -> Section:
     return section
 
 
+def section_sentinel_reject_soft_fallback(browser: Browser) -> Section:
+    """Verify a stale sentinel triggers an in-page retry (no full reload)."""
+    section = Section("sentinel-reject-soft-fallback")
+
+    # Set up a real room so we can craft "room exists, pid stale" cases too.
+    setup_ctx = make_mobile_context(browser)
+    setup_page = setup_ctx.new_page()
+    real_code = create_room_mobile(setup_page, "Host")
+    setup_ctx.close()
+
+    # Case 1: Stale sentinel, room gone (ZZZZ), with saved name.
+    ctx = make_mobile_context(browser)
+    page = ctx.new_page()
+    page.goto(BASE + "/m")
+    page.evaluate("localStorage.setItem('princess_name', 'Mike')")
+    page.evaluate(
+        "sessionStorage.setItem('princess_session',"
+        " JSON.stringify({code: 'ZZZZ', pid: 'fake', name: 'Mike'}))"
+    )
+    page.goto(f"{BASE}/m/ZZZZ")
+    nav_before = page.evaluate(
+        "performance.getEntriesByType('navigation').length"
+    )
+    page.wait_for_timeout(1200)
+    nav_after = page.evaluate(
+        "performance.getEntriesByType('navigation').length"
+    )
+    landing_visible = page.locator("#m-landing").is_visible()
+    error_visible = page.locator("#m-lobby-error").is_visible()
+    section.checks.append(CheckResult(
+        "Stale sentinel + room gone + saved name: no reload, landing visible",
+        passed=(nav_after == nav_before)
+        and landing_visible
+        and error_visible,
+        notes=(
+            f"nav_before={nav_before} nav_after={nav_after} "
+            f"landing_visible={landing_visible} error_visible={error_visible}"
+        ),
+    ))
+    ctx.close()
+
+    # Case 2: Stale sentinel, room exists, with saved name → tier 2 seats user.
+    ctx = make_mobile_context(browser)
+    page = ctx.new_page()
+    page.goto(BASE + "/m")
+    page.evaluate("localStorage.setItem('princess_name', 'Mike')")
+    page.evaluate(
+        "sessionStorage.setItem('princess_session',"
+        f" JSON.stringify({{code: '{real_code}', pid: 'fake', name: 'Mike'}}))"
+    )
+    page.goto(f"{BASE}/m/{real_code}")
+    nav_before = page.evaluate(
+        "performance.getEntriesByType('navigation').length"
+    )
+    try:
+        page.wait_for_selector("#m-room:not([hidden])", timeout=6000)
+        seated = True
+    except Exception:  # pylint: disable=broad-exception-caught
+        seated = False
+    nav_after = page.evaluate(
+        "performance.getEntriesByType('navigation').length"
+    )
+    section.checks.append(CheckResult(
+        "Stale sentinel + room exists + saved name: no reload, user seated",
+        passed=seated and (nav_after == nav_before),
+        notes=f"seated={seated} nav_before={nav_before} nav_after={nav_after}",
+    ))
+    ctx.close()
+
+    # Case 3: Stale sentinel, room exists, no saved name → tier 3 focused view.
+    ctx = make_mobile_context(browser)
+    page = ctx.new_page()
+    page.goto(BASE + "/m")
+    page.evaluate("localStorage.removeItem('princess_name')")
+    page.evaluate(
+        "sessionStorage.setItem('princess_session',"
+        f" JSON.stringify({{code: '{real_code}', pid: 'fake', name: ''}}))"
+    )
+    page.goto(f"{BASE}/m/{real_code}")
+    nav_before = page.evaluate(
+        "performance.getEntriesByType('navigation').length"
+    )
+    try:
+        page.wait_for_selector("#m-focused-join:not([hidden])", timeout=6000)
+        focused = True
+    except Exception:  # pylint: disable=broad-exception-caught
+        focused = False
+    nav_after = page.evaluate(
+        "performance.getEntriesByType('navigation').length"
+    )
+    section.checks.append(CheckResult(
+        "Stale sentinel + room exists + no saved name: focused view, no reload",
+        passed=focused and (nav_after == nav_before),
+        notes=f"focused={focused} nav_before={nav_before} nav_after={nav_after}",
+    ))
+    ctx.close()
+
+    return section
+
+
 def section_supporting_visuals(browser: Browser) -> Section:
     """Snapshot the mobile UI to visually confirm opponent face-up + wrapped hand."""
     section = Section("supporting visuals")
@@ -701,6 +801,7 @@ def main() -> int:
         try:
             sections.append(section_ua_redirect(browser))
             sections.append(section_deep_link_auto_join(browser))
+            sections.append(section_sentinel_reject_soft_fallback(browser))
             sections.append(section_share_room_link(browser))
             sections.append(section_discard_count(browser))
             sections.append(section_scroll_hint(browser))

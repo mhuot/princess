@@ -98,6 +98,14 @@ function clearSession() {
   try { sessionStorage.removeItem("princess_session"); } catch { /* ignore */ }
 }
 
+// Reset the partially-seated DOM so a re-entered autoJoinFromUrl() (tier 2 or
+// tier 3 after a 4001 sentinel rejection) starts from a clean landing.
+function resetSeatedUi() {
+  $("room-view").hidden = true;
+  $("game-view").hidden = true;
+  $("lobby").hidden = false;
+}
+
 async function joinRoomBy(code, name) {
   const { pid } = await postJSON(`/api/rooms/${code}/join`, { name });
   state.code = code;
@@ -255,12 +263,22 @@ function openSocket() {
     state._wsGotMessage = true;
     handleMessage(JSON.parse(e.data));
   });
-  state.socket.addEventListener("close", () => {
-    if (!state._wsGotMessage) {
-      // Tier-1 sentinel reconnect failed (unknown pid / evicted seat).
-      // Clear the sentinel and reload — the next pass will try tier 2.
+  state.socket.addEventListener("close", (event) => {
+    console.info("ws close", { code: event.code, reason: event.reason });
+    if (event.code === 4001) {
+      // Permanent rejection (server signaled unknown_room or unknown_pid):
+      // clear the dead sentinel, reset the seated DOM, and re-enter the
+      // auto-join chain in-page. No location.reload().
       clearSession();
-      location.reload();
+      resetSeatedUi();
+      const urlCode = (location.pathname.match(/^\/room\/([A-Z0-9]{4})$/i) || [])[1];
+      if (urlCode) autoJoinFromUrl(urlCode.toUpperCase());
+      return;
+    }
+    if (!state._wsGotMessage) {
+      // Non-4001 close before the first message: leave for the planned
+      // websocket-reconnect change. Today, surface the disconnect notice.
+      $("waiting-message").textContent = "Disconnected. Refresh to reconnect.";
       return;
     }
     $("waiting-message").textContent = "Disconnected. Refresh to reconnect.";

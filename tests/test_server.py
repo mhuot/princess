@@ -15,7 +15,9 @@ import importlib
 import os
 from types import SimpleNamespace
 
+import pytest
 from fastapi.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from princess.server import _client_ip, app
 from princess import rooms as rooms_module
@@ -160,6 +162,64 @@ def test_full_websocket_round_trip():
         assert msg["type"] == "state"
         assert "you" in msg["view"]
         assert msg["view"]["phase"] == "setup"
+
+
+# --- WebSocket pre-handshake rejection tests --------------------------------
+
+
+def test_ws_unknown_room_closes_4001_unknown_room():
+    """Permanent rejection: unknown room code → code=4001 reason=unknown_room."""
+    client = _client()
+    with client.websocket_connect("/ws/ZZZZ/anypid") as ws:
+        first = ws.receive_json()
+        assert first == {"type": "error", "message": "room not found"}
+        with pytest.raises(WebSocketDisconnect) as exc_info:
+            ws.receive_json()
+    assert exc_info.value.code == 4001
+    assert exc_info.value.reason == "unknown_room"
+
+
+def test_ws_unknown_pid_closes_4001_unknown_pid():
+    """Permanent rejection: real room, bogus pid → code=4001 reason=unknown_pid."""
+    client = _client()
+    code = client.post("/api/rooms", json={"name": "Ada"}).json()["code"]
+    with client.websocket_connect(f"/ws/{code}/bogus-pid") as ws:
+        first = ws.receive_json()
+        assert first == {"type": "error", "message": "seat not found"}
+        with pytest.raises(WebSocketDisconnect) as exc_info:
+            ws.receive_json()
+    assert exc_info.value.code == 4001
+    assert exc_info.value.reason == "unknown_pid"
+
+
+def test_ws_bot_pid_closes_4001_unknown_pid():
+    """A bot's pid is treated like an unknown pid: code=4001 reason=unknown_pid."""
+    client = _client()
+    create = client.post("/api/rooms", json={"name": "Ada"}).json()
+    code, host_pid = create["code"], create["pid"]
+    client.post(f"/api/rooms/{code}/bot", json={"host_pid": host_pid})
+    room = rooms_module.REGISTRY.get(code)
+    bot_pid = next(seat.pid for seat in room.seats if seat.is_bot)
+    with client.websocket_connect(f"/ws/{code}/{bot_pid}") as ws:
+        first = ws.receive_json()
+        assert first == {"type": "error", "message": "seat not found"}
+        with pytest.raises(WebSocketDisconnect) as exc_info:
+            ws.receive_json()
+    assert exc_info.value.code == 4001
+    assert exc_info.value.reason == "unknown_pid"
+
+
+def test_ws_normal_disconnect_is_not_4001():
+    """A seated player's clean disconnect uses default 1000-range, not 4001."""
+    client = _client()
+    create = client.post("/api/rooms", json={"name": "Ada"}).json()
+    code, host_pid = create["code"], create["pid"]
+    with client.websocket_connect(f"/ws/{code}/{host_pid}") as ws:
+        first = ws.receive_json()
+        assert first["type"] == "lobby"
+        # Client closes — server's `finally` cleanup uses no explicit code.
+        ws.close()
+    # No exception means we did not hit a 4001 close from the server.
 
 
 # --- Config / abort / rematch / leave endpoint tests ------------------------
