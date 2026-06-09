@@ -53,6 +53,11 @@ class Seat:
     socket: WebSocket | None = None
 
 
+def _fresh_scoreboard_entry() -> dict[str, int]:
+    """A zeroed session-scoreboard entry for a single seat."""
+    return {"princess_wins": 0, "last_places": 0, "rounds_played": 0}
+
+
 @dataclass
 class Room:
     code: str
@@ -62,6 +67,15 @@ class Room:
     config: GameConfig = field(default_factory=GameConfig)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     last_activity_ts: float = field(default_factory=time.monotonic)
+    # Session-level scoreboard. Keyed by seat.pid; survives `/rematch` and
+    # zeros on `/abort`. Entries are added on seat creation and dropped on
+    # seat removal (see `_ensure_scoreboard_entry` / `_drop_scoreboard_entry`).
+    scoreboard: dict[str, dict[str, int]] = field(default_factory=dict)
+    # `id()` of the last `Game` whose game-over bump has already been applied.
+    # Cleared in `start_game()` so each new round can bump exactly once when it
+    # ends. Used by `_bump_scoreboard_if_needed()` to stay idempotent across
+    # reconnect-driven re-broadcasts.
+    _scoreboard_counted_for_game: int | None = None
 
     def touch(self) -> None:
         """Mark the room as recently active so the idle sweep spares it."""
@@ -72,6 +86,45 @@ class Room:
             if seat.pid == pid:
                 return seat
         return None
+
+    def _ensure_scoreboard_entry(self, pid: str) -> None:
+        """Add a zeroed scoreboard entry for ``pid`` if absent."""
+        if pid not in self.scoreboard:
+            self.scoreboard[pid] = _fresh_scoreboard_entry()
+
+    def _drop_scoreboard_entry(self, pid: str) -> None:
+        """Remove ``pid`` from the scoreboard; no-op if absent."""
+        self.scoreboard.pop(pid, None)
+
+    def _bump_scoreboard_if_needed(self) -> None:
+        """Increment counters when the current `Game` has just finished.
+
+        Idempotent: a re-broadcast of the same finished `Game` does not double
+        count thanks to the `_scoreboard_counted_for_game` marker, which is
+        cleared on every fresh `start_game()`.
+        """
+        game = self.game
+        if game is None or not game.game_over:
+            return
+        if self._scoreboard_counted_for_game == id(game):
+            return
+        finished_order = list(game.finished_order)
+        if finished_order:
+            winner_pid = finished_order[0]
+            last_pid = finished_order[-1]
+            if winner_pid in self.scoreboard:
+                self.scoreboard[winner_pid]["princess_wins"] += 1
+            if last_pid in self.scoreboard:
+                self.scoreboard[last_pid]["last_places"] += 1
+            for pid in finished_order:
+                if pid in self.scoreboard:
+                    self.scoreboard[pid]["rounds_played"] += 1
+        self._scoreboard_counted_for_game = id(game)
+
+    def reset_scoreboard(self) -> None:
+        """Zero every existing entry without dropping any (used by `/abort`)."""
+        for pid in self.scoreboard:
+            self.scoreboard[pid] = _fresh_scoreboard_entry()
 
     def public_lobby(self) -> dict:
         return {
@@ -88,6 +141,7 @@ class Room:
             ],
             "started": self.game is not None,
             "config": self.config.to_dict(),
+            "scoreboard": {pid: dict(entry) for pid, entry in self.scoreboard.items()},
         }
 
     async def broadcast_lobby(self) -> None:
@@ -95,15 +149,22 @@ class Room:
         await self._broadcast(msg)
 
     async def broadcast_state(self) -> None:
+        # Game-over bumps fire at the room layer (engine stays pure). The
+        # bump is idempotent so re-broadcasts on reconnect do not double-count.
+        self._bump_scoreboard_if_needed()
         if self.game is None:
             await self.broadcast_lobby()
             return
         bot_pids = {s.pid for s in self.seats if s.is_bot}
+        scoreboard = {pid: dict(entry) for pid, entry in self.scoreboard.items()}
         for seat in self.seats:
             if seat.is_bot or seat.socket is None:
                 continue
             view = self.game.view_for(seat.pid, bot_pids=bot_pids)
-            await self._send(seat.socket, {"type": "state", "view": view})
+            await self._send(
+                seat.socket,
+                {"type": "state", "view": view, "scoreboard": scoreboard},
+            )
 
     async def _broadcast(self, msg: dict) -> None:
         for seat in self.seats:
@@ -119,6 +180,10 @@ class Room:
 
     def start_game(self) -> None:
         self.touch()
+        # A fresh game means the next game-over bump must fire. Clearing the
+        # marker here (rather than at game-over) makes rematches naturally
+        # countable without any extra wiring.
+        self._scoreboard_counted_for_game = None
         rlog = room_logger(self.code)
         players = [Player(pid=s.pid, name=s.name) for s in self.seats]
         self.game = Game(players, swap_phase=True, config=self.config)
@@ -273,6 +338,7 @@ class RoomRegistry:
                 raise RuntimeError("failed to allocate room code")
             room = Room(code=code, host_pid=host_pid)
             room.seats.append(Seat(pid=host_pid, name=host_name))
+            room._ensure_scoreboard_entry(host_pid)  # pylint: disable=protected-access
             self._rooms[code] = room
             return room
 

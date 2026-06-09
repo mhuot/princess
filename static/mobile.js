@@ -35,6 +35,9 @@ const state = {
   _firstCloseTs: null,
   _reconnectTimer: null,
   _reconnectedFlashTimer: null,
+  // Session scoreboard from the room-server, keyed by pid. Updated on every
+  // `lobby` and `state` message.
+  scoreboard: {},
 };
 
 let handEndObserver = null;
@@ -398,9 +401,15 @@ function openSocket() {
 }
 
 function handleMessage(msg) {
-  if (msg.type === "lobby") renderLobby(msg.room);
-  else if (msg.type === "state") renderGame(msg.view);
-  else if (msg.type === "error") showError(msg.message);
+  if (msg.type === "lobby") {
+    if (msg.room && msg.room.scoreboard) state.scoreboard = msg.room.scoreboard;
+    renderLobby(msg.room);
+  } else if (msg.type === "state") {
+    if (msg.scoreboard) state.scoreboard = msg.scoreboard;
+    renderGame(msg.view);
+  } else if (msg.type === "error") {
+    showError(msg.message);
+  }
 }
 
 async function addBot() {
@@ -581,6 +590,25 @@ function lockInSetup() {
 
 // --- Opponents -------------------------------------------------------------
 
+// Append inline `· Princess N` / `· Last N` chips next to a name. Sourced
+// from `state.scoreboard`; zero counters render nothing.
+function appendScoreBadges(parent, pid) {
+  const entry = state.scoreboard?.[pid];
+  if (!entry) return;
+  if (entry.princess_wins > 0) {
+    const span = document.createElement("span");
+    span.className = "m-score-badge";
+    span.textContent = ` · Princess ${entry.princess_wins}`;
+    parent.appendChild(span);
+  }
+  if (entry.last_places > 0) {
+    const span = document.createElement("span");
+    span.className = "m-score-badge";
+    span.textContent = ` · Last ${entry.last_places}`;
+    parent.appendChild(span);
+  }
+}
+
 function renderOpponents(view) {
   const strip = $("m-opponents");
   strip.innerHTML = "";
@@ -592,6 +620,7 @@ function renderOpponents(view) {
     const name = document.createElement("div");
     name.className = "m-opp-name";
     name.textContent = p.name + (p.is_bot ? " (bot)" : "") + (p.finished ? " · out" : "");
+    appendScoreBadges(name, p.pid);
     box.appendChild(name);
     const faceUpRow = document.createElement("div");
     faceUpRow.className = "m-opp-face-up";
@@ -694,7 +723,12 @@ function renderHand(view) {
   }
   toolbar.hidden = false;
   wrap.hidden = false;
-  $("m-hand-count").textContent = `${rawCards.length} card${rawCards.length === 1 ? "" : "s"}`;
+  // Re-render the hand-count slot from scratch so we can append the user's
+  // session badges next to it (the wherever-the-user's-name-renders surface
+  // on mobile).
+  const countSlot = $("m-hand-count");
+  countSlot.textContent = `${rawCards.length} card${rawCards.length === 1 ? "" : "s"}`;
+  appendScoreBadges(countSlot, state.pid);
 
   // Build [{c, idx}] pairs so we can sort while preserving server-side indices.
   const items = rawCards.map((c, i) => ({ c, idx: i }));
@@ -859,8 +893,29 @@ function renderResults(view) {
     ol.appendChild(li);
   });
 
+  renderSessionRecord();
+
   $("m-rematch-btn").hidden = !state.isHost;
   $("m-rematch-note").hidden = state.isHost;
+}
+
+function renderSessionRecord() {
+  const slot = $("m-session-record");
+  if (!slot) return;
+  const entry = state.scoreboard?.[state.pid];
+  if (!entry || !entry.rounds_played) {
+    slot.hidden = true;
+    slot.textContent = "";
+    return;
+  }
+  const parts = [`Princess ${entry.princess_wins}`];
+  if (entry.last_places > 0) {
+    parts.push(`Last place ${entry.last_places}`);
+  }
+  const rounds = entry.rounds_played;
+  parts.push(`${rounds} round${rounds === 1 ? "" : "s"}`);
+  slot.textContent = `Session record: ${parts.join(" · ")}`;
+  slot.hidden = false;
 }
 
 // --- Legality / specials ---------------------------------------------------

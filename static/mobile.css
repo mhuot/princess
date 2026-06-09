@@ -696,3 +696,23 @@ input {
     animation: m-winner-halo var(--anim-celebrate) ease;
   }
 }
+
+/* --- Session scoreboard (see openspec change `session-leaderboard`) ----- */
+
+.m-score-badge {
+  color: var(--accent);
+  font-size: 0.7rem;
+  margin-left: 0.2em;
+  font-weight: 600;
+}
+
+.m-session-record {
+  color: var(--accent);
+  font-size: 0.85rem;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.m-session-record[hidden] {
+  display: none !important;
+}
