@@ -86,6 +86,89 @@ princess/
 └── NOTICE               # attribution
 ```
 
+## Ops
+
+### Health check and logs
+
+The server exposes an unauthenticated liveness probe and optional rotating
+file logging, both intended for production deployments behind nginx.
+
+**`GET /healthz`** returns `200 OK` with a small JSON payload:
+
+```json
+{
+  "status": "ok",
+  "uptime_seconds": 312,
+  "rooms": 4,
+  "log_buffer_size": 187
+}
+```
+
+`uptime_seconds` is measured from process start (monotonic clock). `rooms`
+is the current in-memory room count. `log_buffer_size` is the live count of
+entries in the in-memory ring buffer (capacity is fixed at 2000). The
+endpoint does no per-room work and does no I/O — it is safe to probe at
+high frequency from nginx, an external uptime monitor (Uptime Robot,
+Better Uptime, etc.), or any orchestrator.
+
+**File logging** is opt-in via env var. Defaults preserve the existing
+"no files on disk" behaviour in development.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PRINCESS_LOG_PATH` | _(unset)_ | Path to the rotating log file. Unset/empty → no file handler attached. |
+| `PRINCESS_LOG_MAX_BYTES` | `10485760` (10 MB) | Bytes per file before rotation. |
+| `PRINCESS_LOG_BACKUP_COUNT` | `5` | Number of rotated backups kept. |
+
+The file handler writes one JSON object per line (JSONL) with fields
+`ts`, `level`, `logger`, `message`, `room`, and an optional `exc_info`
+when `logger.exception(...)` is used. `room` is parsed from logger names
+of the form `princess.room.<code>`, enabling per-room grep:
+
+```
+jq 'select(.room=="AB12")' /var/log/princess.log
+```
+
+Stdout and the in-browser `/logs` viewer keep the existing human-readable
+single-line format. The file is purely a deploy-spanning backup so a
+container restart does not take the history with it. If the configured
+path cannot be opened, the server logs a single warning to stdout and
+continues without the file handler — startup never fails on a misconfigured
+log path.
+
+**nginx upstream health check** (OSS nginx — passive via
+`proxy_next_upstream`; active health checks require nginx-plus):
+
+```nginx
+upstream princess_app {
+    server 127.0.0.1:8000 max_fails=2 fail_timeout=10s;
+}
+
+location / {
+    proxy_pass http://princess_app;
+    proxy_next_upstream error timeout http_502 http_503 http_504;
+}
+
+location = /healthz {
+    proxy_pass http://princess_app/healthz;
+    access_log off;
+}
+```
+
+**docker-compose** snippet mounting the host log directory:
+
+```yaml
+services:
+  princess:
+    image: princess:latest
+    environment:
+      PRINCESS_LOG_PATH: /var/log/princess/princess.log
+      PRINCESS_LOG_MAX_BYTES: "10485760"
+      PRINCESS_LOG_BACKUP_COUNT: "5"
+    volumes:
+      - /var/log/princess:/var/log/princess
+```
+
 ## Contributing
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md). The short version:

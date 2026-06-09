@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `GET /healthz` endpoint returning `{status, uptime_seconds, rooms, log_buffer_size}` for nginx upstream health checks and external monitors. [health-check-and-file-logs]
+- Optional rotating JSON-line file logging via `PRINCESS_LOG_PATH` env var (default 10 MB × 5 backups, configurable via `PRINCESS_LOG_MAX_BYTES` and `PRINCESS_LOG_BACKUP_COUNT`). Stdout and the in-memory `/logs` viewer continue to use the human-readable format. [health-check-and-file-logs]
 - Deep links (`/room/<code>` and `/m/<code>`) now **auto-join** the room. First-time visitors see a focused name-only form (Join button stays disabled until a non-empty trimmed name is typed; the name is `trim()`-ed before save and send). Returning visitors auto-join with the name cached in `localStorage`. Page refreshes restore the seat via a `sessionStorage` sentinel; if the sentinel goes stale (unknown pid / evicted seat), the WS closes silently and we re-run the tier chain. [deep-link-auto-join]
 - Phones are auto-redirected from `/` and `/room/<code>` to `/m` and `/m/<code>`. Override with `?desktop=1` or the **View desktop site** link in the mobile lobby. The reverse-path **Mobile site** link lives in the desktop footer. UA detection uses the standard `Mobi` substring check; tablets (which omit `Mobi`) stay on the desktop UI. [mobile-ua-redirect]
 

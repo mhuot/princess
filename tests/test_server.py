@@ -631,3 +631,37 @@ def test_leave_unknown_pid_is_idempotent():
     code, _host = _bootstrap_lobby(client)
     res = client.post(f"/api/rooms/{code}/leave", json={"pid": "definitely-not-real"})
     assert res.status_code == 200
+
+
+def test_healthz_returns_ok():
+    client = _client()
+    res = client.get("/healthz")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["status"] == "ok"
+    assert isinstance(body["uptime_seconds"], int)
+    assert body["uptime_seconds"] >= 0
+    assert isinstance(body["rooms"], int)
+    assert body["rooms"] >= 0
+    assert isinstance(body["log_buffer_size"], int)
+    assert body["log_buffer_size"] >= 0
+
+
+def test_healthz_reports_room_count():
+    client = _client()
+    client.post("/api/rooms", json={"name": "Ada"})
+    client.post("/api/rooms", json={"name": "Grace"})
+    res = client.get("/healthz")
+    assert res.status_code == 200
+    assert res.json()["rooms"] == 2
+
+
+def test_healthz_unaffected_by_mobile_ua():
+    client = _client()
+    res = client.get(
+        "/healthz",
+        headers={"user-agent": _IPHONE_UA},
+        follow_redirects=False,
+    )
+    assert res.status_code == 200
+    assert res.json()["status"] == "ok"

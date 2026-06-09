@@ -24,6 +24,7 @@ from __future__ import annotations
 import logging
 import os
 import secrets
+import time
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -37,6 +38,8 @@ from .logging_config import LOG_BUFFER, room_logger, setup_logging
 from .rooms import MAX_PLAYERS, MIN_PLAYERS, REGISTRY, Seat, parse_source
 
 ROOM_IDLE_TIMEOUT = float(os.environ.get("ROOM_IDLE_TIMEOUT_SECONDS", "300"))
+
+APP_STARTED_AT = time.monotonic()
 
 
 def _sweep_idle_rooms() -> None:
@@ -110,6 +113,16 @@ async def mobile_index() -> FileResponse:
 @app.get("/m/{code}")
 async def mobile_room_page(code: str) -> FileResponse:  # pylint: disable=unused-argument
     return FileResponse(STATIC_DIR / "mobile.html")
+
+
+@app.get("/healthz")
+async def healthz() -> dict:
+    return {
+        "status": "ok",
+        "uptime_seconds": int(time.monotonic() - APP_STARTED_AT),
+        "rooms": len(REGISTRY),
+        "log_buffer_size": len(LOG_BUFFER),
+    }
 
 
 @app.get("/logs")
