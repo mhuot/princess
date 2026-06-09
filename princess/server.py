@@ -487,12 +487,15 @@ async def gameplay_socket(websocket: WebSocket, code: str, pid: str) -> None:
     room = REGISTRY.get(code)
     if room is None:
         await websocket.send_json({"type": "error", "message": "room not found"})
-        await websocket.close()
+        # Code 4001 with reason="unknown_room" signals permanent rejection so
+        # clients can distinguish a stale sentinel from a transient drop.
+        await websocket.close(code=4001, reason="unknown_room")
         return
     seat = room.seat_by_pid(pid)
     if seat is None or seat.is_bot:
         await websocket.send_json({"type": "error", "message": "seat not found"})
-        await websocket.close()
+        # Code 4001 with reason="unknown_pid" signals permanent rejection.
+        await websocket.close(code=4001, reason="unknown_pid")
         return
     seat.socket = websocket
     room.touch()
