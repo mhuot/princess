@@ -19,6 +19,11 @@
   --m-pile-w: 80px;
   --m-pile-h: 116px;
   --m-action-h: 64px;
+  /* Play-event animation durations (see play-burn-animations spec). */
+  --anim-burn: 300ms;
+  --anim-pickup: 280ms;
+  --anim-illegal: 200ms;
+  --anim-celebrate: 350ms;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -560,4 +565,109 @@ input {
 #m-hand-wrap[hidden],
 #m-hand-scroll-hint[hidden] {
   display: none !important;
+}
+
+/*
+ * Play & burn animations (see openspec/specs/mobile-frontend).
+ *
+ * The mobile UI mirrors the desktop's four animation hooks against the
+ * mobile DOM (`#m-pile-card`, `.m-pile-area`, `#m-hand-row`, `#m-winner-name`).
+ * Every animation respects `prefers-reduced-motion` via the override block.
+ * The hand-row lift is held to ~2px so cards never cross the sticky action bar.
+ */
+@keyframes m-burn-flash {
+  0%   { background: var(--surface); transform: translateY(0); }
+  35%  { background: var(--accent-strong); transform: translateY(-8px); }
+  70%  { background: var(--accent-strong); transform: translateY(0); }
+  100% { background: var(--surface); transform: translateY(0); }
+}
+
+@keyframes m-burn-flash-color {
+  0%   { background: var(--surface); }
+  50%  { background: var(--accent-strong); }
+  100% { background: var(--surface); }
+}
+
+#m-pile-card.is-burning {
+  animation: m-burn-flash var(--anim-burn) ease;
+}
+
+@keyframes m-pickup-fade-shake {
+  0%   { opacity: 1; transform: translateX(0); }
+  25%  { opacity: 0.55; transform: translateX(-2px); }
+  50%  { opacity: 0.55; transform: translateX(2px); }
+  75%  { opacity: 0.7; transform: translateX(-2px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes m-pickup-handglow {
+  0%   { transform: translateY(0); box-shadow: 0 0 0 0 rgba(255, 209, 102, 0); }
+  40%  { transform: translateY(-2px); box-shadow: 0 0 0 3px rgba(255, 209, 102, 0.55); }
+  100% { transform: translateY(0); box-shadow: 0 0 0 0 rgba(255, 209, 102, 0); }
+}
+
+.m-pile-area.is-pickup {
+  animation: m-pickup-fade-shake var(--anim-pickup) ease;
+}
+
+#m-hand-row.is-pickup {
+  animation: m-pickup-handglow var(--anim-pickup) ease;
+  border-radius: 8px;
+}
+
+@keyframes m-illegal-shake {
+  0%   { transform: translateX(0); border-color: var(--danger); }
+  25%  { transform: translateX(-3px); border-color: var(--danger); }
+  50%  { transform: translateX(3px); border-color: var(--danger); }
+  75%  { transform: translateX(-3px); border-color: var(--danger); }
+  100% { transform: translateX(0); border-color: var(--danger); }
+}
+
+@keyframes m-illegal-border {
+  0%   { border-color: var(--danger); }
+  100% { border-color: var(--danger); }
+}
+
+#m-hand-row .is-illegal,
+#m-hand-row .m-hand-card.is-illegal {
+  animation: m-illegal-shake var(--anim-illegal) ease;
+}
+
+@keyframes m-winner-celebrate {
+  0%   { transform: scale(1); filter: drop-shadow(0 0 0 var(--accent)); }
+  50%  { transform: scale(1.08); filter: drop-shadow(0 0 12px var(--accent)); }
+  100% { transform: scale(1); filter: drop-shadow(0 0 0 var(--accent)); }
+}
+
+@keyframes m-winner-halo {
+  0%   { filter: drop-shadow(0 0 0 var(--accent)); }
+  50%  { filter: drop-shadow(0 0 12px var(--accent)); }
+  100% { filter: drop-shadow(0 0 0 var(--accent)); }
+}
+
+#m-winner-name.is-celebrating {
+  animation: m-winner-celebrate var(--anim-celebrate) ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #m-pile-card.is-burning {
+    animation: m-burn-flash-color var(--anim-burn) ease;
+  }
+  .m-pile-area.is-pickup {
+    animation: none;
+    opacity: 0.7;
+    transition: opacity var(--anim-pickup) ease;
+  }
+  #m-hand-row.is-pickup {
+    animation: none;
+    box-shadow: 0 0 0 3px rgba(255, 209, 102, 0.55);
+    transition: box-shadow var(--anim-pickup) ease;
+  }
+  #m-hand-row .is-illegal,
+  #m-hand-row .m-hand-card.is-illegal {
+    animation: m-illegal-border var(--anim-illegal) ease;
+  }
+  #m-winner-name.is-celebrating {
+    animation: m-winner-halo var(--anim-celebrate) ease;
+  }
 }

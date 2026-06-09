@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Play & burn animations: pile flashes on burn, pickup sweeps toward your hand, illegal plays shake the selected card, the winner name celebrates. All animations respect `prefers-reduced-motion`. [play-burn-animations]
 - Per-IP rate limiting on the four room mutation endpoints — `POST /api/rooms` (6/min), `POST /api/rooms/<code>/join` (30/min), `POST /api/rooms/<code>/bot` (20/min), `POST /api/rooms/<code>/rename` (30/min). Limits are keyed by the first `X-Forwarded-For` entry (real client IP behind nginx). Set `PRINCESS_RATE_LIMIT_DISABLED=1` to bypass in dev/tests. [rate-limit-rooms]
 - `GET /healthz` endpoint returning `{status, uptime_seconds, rooms, log_buffer_size}` for nginx upstream health checks and external monitors. [health-check-and-file-logs]
 - Optional rotating JSON-line file logging via `PRINCESS_LOG_PATH` env var (default 10 MB × 5 backups, configurable via `PRINCESS_LOG_MAX_BYTES` and `PRINCESS_LOG_BACKUP_COUNT`). Stdout and the in-memory `/logs` viewer continue to use the human-readable format. [health-check-and-file-logs]
