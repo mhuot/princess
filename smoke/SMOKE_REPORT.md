@@ -1,10 +1,10 @@
 # Smoke test report
 
-_Generated 2026-06-08 23:45:18 UTC_  
+_Generated 2026-06-09 01:43:12 UTC_  
 _Tool: Playwright (Chromium headless)_  
 _Base URL: https://princess.geekpark.com_
 
-**Result: 34/34 checks passed.**
+**Result: 39/39 checks passed.**
 
 ## mobile-ua-redirect (9/9)
 
@@ -56,7 +56,7 @@ _Base URL: https://princess.geekpark.com_
 
 ### ✅ Tier 3: focused view appears with no saved name
 
-> focused_visible=True landing_hidden=True btn='Join room 2O9Z'
+> focused_visible=True landing_hidden=True btn='Join room 59L1'
 
 ![Tier 3: focused view appears with no saved name](screens/auto-join-focused-view.png)
 
@@ -84,7 +84,7 @@ _Base URL: https://princess.geekpark.com_
 
 ### ✅ Session sentinel persisted after join
 
-> sentinel='{"code":"2O9Z","pid":"oGgqTL7NWoY","name":"Mike"}'
+> sentinel='{"code":"59L1","pid":"YHN57ZRhqNc","name":"Mike"}'
 
 ### ✅ Failure (404) falls back to landing with code prefilled + error
 
@@ -92,11 +92,35 @@ _Base URL: https://princess.geekpark.com_
 
 ![Failure (404) falls back to landing with code prefilled + error](screens/auto-join-failure-fallback.png)
 
+## sentinel-reject-soft-fallback (3/3)
+
+### ✅ Stale sentinel + room gone + saved name: no reload, landing visible
+
+> nav_before=1 nav_after=1 landing_visible=True error_visible=True
+
+### ✅ Stale sentinel + room exists + saved name: no reload, user seated
+
+> seated=True nav_before=1 nav_after=1
+
+### ✅ Stale sentinel + room exists + no saved name: focused view, no reload
+
+> focused=True nav_before=1 nav_after=1
+
+## websocket-reconnect (2/2)
+
+### ✅ Mid-session close: banner shows Reconnecting… and actions disabled
+
+> banner_text='Reconnecting…' play_disabled=True pickup_disabled=True
+
+### ✅ Successful reopen: banner returns to live (hidden) state
+
+> Banner auto-hides after Reconnected flash.
+
 ## share-room-link (7/7)
 
 ### ✅ Desktop lobby shows Share link button
 
-> Room I1YT
+> Room FSEO
 
 ![Desktop lobby shows Share link button](screens/share-desktop-lobby.png)
 
@@ -108,11 +132,11 @@ _Base URL: https://princess.geekpark.com_
 
 ### ✅ Desktop clipboard URL matches /room/<code>
 
-> clipboard='https://princess.geekpark.com/room/I1YT' expected='https://princess.geekpark.com/room/I1YT'
+> clipboard='https://princess.geekpark.com/room/FSEO' expected='https://princess.geekpark.com/room/FSEO'
 
 ### ✅ Mobile lobby shows ↗ share button
 
-> Room R1ZQ
+> Room M2BS
 
 ![Mobile lobby shows ↗ share button](screens/share-mobile-lobby.png)
 
@@ -128,13 +152,13 @@ _Base URL: https://princess.geekpark.com_
 
 ### ✅ Mobile clipboard URL matches /m/<code>
 
-> clipboard='https://princess.geekpark.com/m/R1ZQ' expected='https://princess.geekpark.com/m/R1ZQ'
+> clipboard='https://princess.geekpark.com/m/M2BS' expected='https://princess.geekpark.com/m/M2BS'
 
 ## mobile-discard-count (4/4)
 
 ### ✅ Created mobile room
 
-> Room S6A6
+> Room I6D0
 
 ### ✅ Setup phase visible (Discard count won't render here, but pile-area UI not yet)
 
@@ -144,7 +168,7 @@ _Base URL: https://princess.geekpark.com_
 
 ### ✅ Playing phase shows Deck and Discard stats
 
-> deck='25' discard='0'
+> deck='24' discard='1'
 
 ![Playing phase shows Deck and Discard stats](screens/discard-playing-phase.png)
 
