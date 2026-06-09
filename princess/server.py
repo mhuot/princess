@@ -28,9 +28,11 @@ import time
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
 
 from .bot_names import pick_bot_name
 from .game import GameConfig
@@ -38,6 +40,51 @@ from .logging_config import LOG_BUFFER, room_logger, setup_logging
 from .rooms import MAX_PLAYERS, MIN_PLAYERS, REGISTRY, Seat, parse_source
 
 ROOM_IDLE_TIMEOUT = float(os.environ.get("ROOM_IDLE_TIMEOUT_SECONDS", "300"))
+
+# Per-IP rate-limit quotas for the four mutating room endpoints. Sized so legit
+# human use (double-clicks, retries) is never throttled but scripted floods are.
+RATE_LIMIT_CREATE = "6/minute"
+RATE_LIMIT_JOIN = "30/minute"
+RATE_LIMIT_BOT = "20/minute"
+RATE_LIMIT_RENAME = "30/minute"
+
+
+def _client_ip(request: Request) -> str:
+    """Return the real client IP, honoring the nginx-set X-Forwarded-For header.
+
+    The first entry in XFF is the original client; subsequent entries are
+    intermediate proxies. When XFF is absent (e.g. direct local calls), we fall
+    back to ``request.client.host``. As a last-ditch safety net (no socket peer
+    info either), return ``"unknown"`` so all such requests share one bucket
+    rather than crashing the key function.
+    """
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        return xff.split(",", 1)[0].strip()
+    if request.client is not None:
+        return request.client.host
+    return "unknown"
+
+
+limiter = Limiter(key_func=_client_ip)
+if os.environ.get("PRINCESS_RATE_LIMIT_DISABLED") == "1":
+    limiter.enabled = False
+
+
+def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    """Return 429 with ``{"detail": ...}`` to match the rest of the API.
+
+    slowapi's default handler emits ``{"error": ...}``, but every other error
+    on this server uses FastAPI's ``HTTPException`` shape (``{"detail": ...}``)
+    and the desktop + mobile error helpers read ``detail`` verbatim. Keep the
+    contract uniform here so the existing toasts render the quota string.
+    """
+    del request  # signature required by Starlette exception-handler protocol
+    return JSONResponse(
+        status_code=429,
+        content={"detail": f"rate limit exceeded: {exc.detail}"},
+    )
+
 
 APP_STARTED_AT = time.monotonic()
 
@@ -54,6 +101,8 @@ log = logging.getLogger("princess.server")
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 app = FastAPI(title="Princess Card Game")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
@@ -171,7 +220,9 @@ def _name_already_taken(
 
 
 @app.post("/api/rooms")
-async def create_room(body: CreateRoomBody) -> dict:
+@limiter.limit(RATE_LIMIT_CREATE)
+async def create_room(request: Request, body: CreateRoomBody) -> dict:
+    del request  # used by slowapi for key extraction
     _sweep_idle_rooms()
     name = body.name.strip()
     pid = _new_pid()
@@ -182,7 +233,9 @@ async def create_room(body: CreateRoomBody) -> dict:
 
 
 @app.post("/api/rooms/{code}/join")
-async def join_room(code: str, body: JoinRoomBody) -> dict:
+@limiter.limit(RATE_LIMIT_JOIN)
+async def join_room(request: Request, code: str, body: JoinRoomBody) -> dict:
+    del request  # used by slowapi for key extraction
     _sweep_idle_rooms()
     room = REGISTRY.get(code)
     if room is None:
@@ -203,7 +256,9 @@ async def join_room(code: str, body: JoinRoomBody) -> dict:
 
 
 @app.post("/api/rooms/{code}/bot")
-async def add_bot(code: str, body: AddBotBody) -> dict:
+@limiter.limit(RATE_LIMIT_BOT)
+async def add_bot(request: Request, code: str, body: AddBotBody) -> dict:
+    del request  # used by slowapi for key extraction
     room = REGISTRY.get(code)
     if room is None:
         raise HTTPException(404, "room not found")
@@ -257,7 +312,9 @@ class RenameBody(BaseModel):
 
 
 @app.post("/api/rooms/{code}/rename")
-async def rename_seat(code: str, body: RenameBody) -> dict:
+@limiter.limit(RATE_LIMIT_RENAME)
+async def rename_seat(request: Request, code: str, body: RenameBody) -> dict:
+    del request  # used by slowapi for key extraction
     room = REGISTRY.get(code)
     if room is None:
         raise HTTPException(404, "room not found")
