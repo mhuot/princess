@@ -21,6 +21,13 @@ const state = {
   setupSelected: new Set(),
   lastRoom: null,
   sortHand: true,
+  // Play & burn animations: advance only on NEW last_actions entries.
+  lastSeenActionIndex: -1,
+  // One-shot celebrate gate keyed to the round-ending action index.
+  celebratedRoundId: null,
+  // Set while a `play` message is in flight so an incoming error toast can
+  // be attributed to that play (and shake the selected cards).
+  expectingPlayReply: false,
 };
 
 let handEndObserver = null;
@@ -208,6 +215,41 @@ function showError(msg) {
   el.textContent = msg;
   el.hidden = false;
   setTimeout(() => (el.hidden = true), 5000);
+  // If the toast lands in response to a `play` message, shake the cards
+  // that were selected at the moment of the click. The DOM `.selected`
+  // class survives until the next render even though `state.selectedIndices`
+  // was cleared on send.
+  if (state.expectingPlayReply) {
+    state.expectingPlayReply = false;
+    document
+      .querySelectorAll("#m-hand-row .selected")
+      .forEach((cardEl) => flashClass(cardEl, "is-illegal", 200));
+  }
+}
+
+// Add a class to `el`, then remove it on `animationend` (one-shot) with a
+// setTimeout safety net. No-op if `el` is null. CSS owns timing/easing.
+function flashClass(el, cls, durationMs) {
+  if (!el) return;
+  el.classList.add(cls);
+  const cleanup = () => el.classList.remove(cls);
+  el.addEventListener("animationend", cleanup, { once: true });
+  setTimeout(cleanup, durationMs + 50);
+}
+
+// Map a `view.last_actions[newest]` entry onto the right element animation.
+// Called only when a new entry has appeared since the previous render.
+function dispatchActionAnimations(entry) {
+  if (!entry) return;
+  if (entry.burned) {
+    flashClass($("m-pile-card"), "is-burning", 300);
+  }
+  if (entry.picked_up) {
+    flashClass(document.querySelector(".m-pile-area"), "is-pickup", 280);
+    if (entry.player_pid === state.pid) {
+      flashClass($("m-hand-row"), "is-pickup", 280);
+    }
+  }
 }
 
 // --- Lobby flow ------------------------------------------------------------
@@ -350,6 +392,12 @@ function renderGame(view) {
   if (view.phase === "setup" && wasPhase !== "setup" && !view.you?.ready) {
     state.setupSelected.clear();
   }
+  // Reset the per-round animation bookkeeping on phase-out-of-playing so
+  // the next round's first action fires its animation correctly.
+  if (wasPhase === "playing" && view.phase !== "playing") {
+    state.lastSeenActionIndex = -1;
+    state.celebratedRoundId = null;
+  }
   state.view = view;
   $("m-lobby").hidden = true;
 
@@ -380,6 +428,15 @@ function renderGame(view) {
   refreshActionButtons(view);
   $("m-game-room-code").textContent = state.code;
   $("m-setup-room-code").textContent = state.code;
+
+  // Edge-detect a NEW last_actions entry; dispatch event-driven animations
+  // only when the tail index has actually advanced since the previous render.
+  const actions = Array.isArray(view.last_actions) ? view.last_actions : [];
+  const newest = actions.length - 1;
+  if (view.phase === "playing" && newest > state.lastSeenActionIndex) {
+    dispatchActionAnimations(actions[newest]);
+    state.lastSeenActionIndex = newest;
+  }
 }
 
 // --- Setup -----------------------------------------------------------------
@@ -613,6 +670,8 @@ function playSelected() {
   if (!source || source === "face_down") return;
   const indices = [...state.selectedIndices].sort((a, b) => a - b);
   if (!indices.length) return;
+  // Mark the outbound play so an incoming error toast can shake the cards.
+  state.expectingPlayReply = true;
   sendAction({ type: "play", source, indices });
   state.selectedIndices.clear();
 }
@@ -666,6 +725,13 @@ function renderResults(view) {
     : winner
       ? "Better luck next round."
       : "";
+  // Celebrate the winner-name once per round; subsequent re-renders of the
+  // game-over panel (e.g., pre-rematch broadcasts) do not re-fire.
+  const roundId = `${winnerPid || "noone"}:${Array.isArray(view.last_actions) ? view.last_actions.length : 0}`;
+  if (winner && state.celebratedRoundId !== roundId) {
+    flashClass($("m-winner-name"), "is-celebrating", 350);
+    state.celebratedRoundId = roundId;
+  }
 
   const finalSlot = $("m-winner-final-action");
   const entries = view.last_actions || [];
