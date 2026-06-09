@@ -29,9 +29,17 @@ In the room view the frontend SHALL render: the room code, the list of seats wit
 Each seat row SHALL render zero, one, or two per-row controls:
 
 - A **Remove** button on **bot rows**, visible to the host only. Clicking it posts to `/api/rooms/<code>/remove_bot` with the bot's pid and the host's pid; on success the lobby re-renders and the seat is gone.
-- A **Rename** button on the **caller's own seat row** (whether host or non-host). Clicking it replaces the seat's name with an inline `<input type="text" maxlength="20">` pre-filled with the current name. Pressing Enter (or blurring the input with a non-empty value) submits to `/api/rooms/<code>/rename` with the caller's pid; Escape cancels. On success the lobby re-renders.
+- A **Rename** button on the **caller's own seat row** (whether host or non-host). Clicking it replaces the seat's name with an inline `<input type="text" maxlength="20">` pre-filled with the current name.
 
 Non-callers do NOT see the Rename button on someone else's row. Non-hosts do NOT see Remove on bot rows.
+
+The inline Rename input SHALL behave as follows:
+
+- **Escape** cancels: the input collapses back to the original name and no network call is made.
+- **Enter** (or **blur with a changed non-empty value**) submits to `POST /api/rooms/<code>/rename` with the caller's pid and the trimmed value. While the POST is in flight, the input SHALL be `disabled` to prevent double-submit; the input SHALL remain in the DOM (it SHALL NOT be replaced with the static name span until the response resolves).
+- **On a 2xx response**, the input SHALL be replaced with the lobby's standard name span. Any error currently shown in `#lobby-error` from a prior failed attempt SHALL be cleared.
+- **On any 4xx response** (including **409 Conflict** when the name collides with another seat, and **422 Unprocessable Entity** when validation fails), the input SHALL remain in the DOM, the error SHALL surface in `#lobby-error` using the existing helper (`showError("lobby-error", e.message)`), the input SHALL be re-enabled, re-focused, and its contents SHALL be programmatically selected (`input.focus(); input.select()`) so the user can immediately type a replacement value without clicking Rename again.
+- **Blur with an unchanged value** is a no-op cancel: the input collapses without a POST.
 
 The House rules panel SHALL contain the **Reverse rank** `<select>` (as previously specified). Changing it triggers `POST /api/rooms/<code>/config`.
 
@@ -105,6 +113,26 @@ When the host clicks **Start game**, the frontend SHALL inspect `room.seats.leng
 
 - **WHEN** the user clicks Rename, edits the input, then presses Escape
 - **THEN** the input collapses back to the original name and no network call is made
+
+#### Scenario: Rename input stays open on a 409 collision
+
+- **WHEN** a non-host named "Pat" clicks Rename, types "Mike" (the host's name), and presses Enter
+- **THEN** the rename POST returns 409, `#lobby-error` shows the server's `"name 'Mike' is already taken in this room"` message, the inline `<input>` remains in the DOM, is re-enabled, is focused, and its full value "Mike" is selected so the user can type over it without clicking Rename again
+
+#### Scenario: Rename input stays open on a 422 overlength
+
+- **WHEN** the user clicks Rename and submits a name longer than 20 characters (somehow bypassing `maxlength` — e.g., paste-and-Enter on a browser that briefly exceeds the cap before truncation)
+- **THEN** the POST returns 422, `#lobby-error` shows the validation message, the input remains in the DOM, is re-enabled, is focused, and its contents are selected
+
+#### Scenario: Successful rename collapses the input and clears prior error
+
+- **WHEN** the user previously saw a 409 (with the input still open) and now types a non-conflicting name and presses Enter
+- **THEN** the POST returns 200, the inline input is removed in favor of the standard name span, and any prior `#lobby-error` message is cleared
+
+#### Scenario: Input is disabled while the rename POST is in flight
+
+- **WHEN** the user presses Enter to submit a rename
+- **THEN** the `<input>` element's `disabled` attribute is `true` for the duration of the POST; on response (success or failure) the disabled state is removed before any focus/select call
 
 ### Requirement: Setup phase UI
 
