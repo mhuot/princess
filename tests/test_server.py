@@ -11,9 +11,13 @@ You may obtain a copy of the License at
     http://www.apache.org/licenses/LICENSE-2.0
 """
 
+import importlib
+import os
+from types import SimpleNamespace
+
 from fastapi.testclient import TestClient
 
-from princess.server import app
+from princess.server import _client_ip, app
 from princess import rooms as rooms_module
 
 
@@ -665,3 +669,57 @@ def test_healthz_unaffected_by_mobile_ua():
     )
     assert res.status_code == 200
     assert res.json()["status"] == "ok"
+
+
+# --- rate limiter ----------------------------------------------------------
+
+
+def test_rate_limit_disabled_via_env():
+    """With PRINCESS_RATE_LIMIT_DISABLED=1 (the conftest default), 10 sequential
+    create-room calls all succeed — proving the kill switch works."""
+    client = _client()
+    assert os.environ.get("PRINCESS_RATE_LIMIT_DISABLED") == "1"
+    for i in range(10):
+        res = client.post("/api/rooms", json={"name": f"Ada{i}"})
+        assert res.status_code == 200, res.text
+
+
+def test_create_room_rate_limit_engages(monkeypatch):
+    """Cleared env var → fresh app import → 6/minute quota kicks in by call 7."""
+    monkeypatch.delenv("PRINCESS_RATE_LIMIT_DISABLED", raising=False)
+    import princess.server as server_module  # pylint: disable=import-outside-toplevel
+
+    fresh = importlib.reload(server_module)
+    try:
+        rooms_module.REGISTRY._rooms.clear()  # pylint: disable=protected-access
+        fresh_client = TestClient(fresh.app)
+        codes = []
+        for i in range(10):
+            res = fresh_client.post("/api/rooms", json={"name": f"Ada{i}"})
+            codes.append(res.status_code)
+        assert 429 in codes, f"expected at least one 429, got {codes}"
+        # The 429 body should expose a `detail` field for the existing
+        # client-side `showError(detail)` helper to render.
+        rejected = fresh_client.post("/api/rooms", json={"name": "Grace"})
+        assert rejected.status_code == 429
+        assert "detail" in rejected.json()
+    finally:
+        # Re-disable and reload the canonical server module so subsequent tests
+        # in the session see the limiter disabled again.
+        monkeypatch.setenv("PRINCESS_RATE_LIMIT_DISABLED", "1")
+        importlib.reload(server_module)
+
+
+def test_client_ip_helper_prefers_xff():
+    """First entry of X-Forwarded-For wins; fallback is request.client.host."""
+    with_xff = SimpleNamespace(
+        headers={"x-forwarded-for": "203.0.113.7, 10.0.0.1"},
+        client=SimpleNamespace(host="127.0.0.1"),
+    )
+    assert _client_ip(with_xff) == "203.0.113.7"
+
+    no_xff = SimpleNamespace(headers={}, client=SimpleNamespace(host="198.51.100.5"))
+    assert _client_ip(no_xff) == "198.51.100.5"
+
+    no_xff_no_client = SimpleNamespace(headers={}, client=None)
+    assert _client_ip(no_xff_no_client) == "unknown"

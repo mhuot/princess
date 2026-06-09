@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Per-IP rate limiting on the four room mutation endpoints — `POST /api/rooms` (6/min), `POST /api/rooms/<code>/join` (30/min), `POST /api/rooms/<code>/bot` (20/min), `POST /api/rooms/<code>/rename` (30/min). Limits are keyed by the first `X-Forwarded-For` entry (real client IP behind nginx). Set `PRINCESS_RATE_LIMIT_DISABLED=1` to bypass in dev/tests. [rate-limit-rooms]
 - `GET /healthz` endpoint returning `{status, uptime_seconds, rooms, log_buffer_size}` for nginx upstream health checks and external monitors. [health-check-and-file-logs]
 - Optional rotating JSON-line file logging via `PRINCESS_LOG_PATH` env var (default 10 MB × 5 backups, configurable via `PRINCESS_LOG_MAX_BYTES` and `PRINCESS_LOG_BACKUP_COUNT`). Stdout and the in-memory `/logs` viewer continue to use the human-readable format. [health-check-and-file-logs]
 - Deep links (`/room/<code>` and `/m/<code>`) now **auto-join** the room. First-time visitors see a focused name-only form (Join button stays disabled until a non-empty trimmed name is typed; the name is `trim()`-ed before save and send). Returning visitors auto-join with the name cached in `localStorage`. Page refreshes restore the seat via a `sessionStorage` sentinel; if the sentinel goes stale (unknown pid / evicted seat), the WS closes silently and we re-run the tier chain. [deep-link-auto-join]
@@ -16,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The four rate-limited room mutation endpoints (`POST /api/rooms`, `POST /api/rooms/<code>/join`, `POST /api/rooms/<code>/bot`, `POST /api/rooms/<code>/rename`) can now return **HTTP 429** with a `{"detail": "rate limit exceeded: <quota>"}` body when an IP exceeds its per-endpoint quota. [rate-limit-rooms]
 - Per-room names are now unique. `POST /api/rooms/<code>/join` and `POST /api/rooms/<code>/rename` return **409 Conflict** when the chosen name (case-insensitive, whitespace-trimmed) matches an existing seat. The 409 detail quotes the offending name (e.g. `"name 'Mike' is already taken in this room"`). Renaming to your own current name is a no-op (200 with no broadcast). `POST /api/rooms` also trims the host's name. Bot picks already considered all seat names and continue to do so. [unique-room-names]
 - Mobile hand now **wraps to multiple rows** of smaller cards (5 per row at iPhone 14 width) instead of horizontally scrolling. The whole hand is visible at a glance; very large hands push the page scroll. Edge chevrons, gradient fades, and scroll-snap are gone. The **Sort: rank / off** toggle and hand-count badge stay. [mobile-hand-wrap]
 - Mobile opponent chips now show each opponent's **face-up cards** inline (with the ★ glyph on wild ranks), matching the desktop UI. Public information is now visible without leaving the play screen. [mobile-opponent-face-up]
