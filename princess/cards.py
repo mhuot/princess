@@ -37,6 +37,15 @@ class Card:
     def to_dict(self) -> dict:
         return {"rank": self.rank, "suit": self.suit, "label": self.label}
 
+    @classmethod
+    def from_dict(cls, data: dict) -> "Card":
+        """Reconstruct a Card from a ``to_dict`` payload.
+
+        ``label`` (when present) is recomputed from rank, so it is ignored on
+        input. Missing ``rank``/``suit`` raises ``KeyError``.
+        """
+        return cls(rank=int(data["rank"]), suit=str(data["suit"]))
+
 
 def make_deck() -> list[Card]:
     return [Card(r, s) for r in RANKS for s in SUITS]

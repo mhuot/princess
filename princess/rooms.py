@@ -20,8 +20,11 @@ You may obtain a copy of the License at
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
 import random
 import secrets
+import sqlite3
 import string
 import time
 from dataclasses import dataclass, field
@@ -39,6 +42,19 @@ MIN_PLAYERS = 2
 AI_THINK_SECONDS = 0.6
 BOT_CAP_WITH_HUMANS = 30
 BOT_CAP_BOTS_ONLY = 1000
+
+# --- persistence -------------------------------------------------------------
+DEFAULT_DB_PATH = "./princess.db"
+_SCHEMA_VERSION = 1
+CREATE_TABLE_SQL = (
+    "CREATE TABLE IF NOT EXISTS rooms ("
+    "code TEXT PRIMARY KEY, "
+    "payload TEXT NOT NULL, "
+    "updated_ts REAL NOT NULL"
+    ")"
+)
+
+_persist_log = logging.getLogger("princess.persistence")
 
 
 def _new_code() -> str:
@@ -125,6 +141,79 @@ class Room:
         """Zero every existing entry without dropping any (used by `/abort`)."""
         for pid in self.scoreboard:
             self.scoreboard[pid] = _fresh_scoreboard_entry()
+
+    # ---- persistence -----------------------------------------------------
+
+    def to_dict(self) -> dict:
+        """Serialize the room to a JSON-friendly dict for SQLite storage.
+
+        Sockets are dropped (they live in the old process's TCP stack), and
+        ``last_activity_ts`` (a ``time.monotonic()`` reading) is translated to
+        wall-clock so the value survives a restart.
+        """
+        wall_last_activity_ts = time.time() - (time.monotonic() - self.last_activity_ts)
+        return {
+            "schema_version": _SCHEMA_VERSION,
+            "code": self.code,
+            "host_pid": self.host_pid,
+            "seats": [{"pid": s.pid, "name": s.name, "is_bot": s.is_bot} for s in self.seats],
+            "config": self.config.to_dict(),
+            "game": self.game.to_dict() if self.game is not None else None,
+            "scoreboard": {pid: dict(entry) for pid, entry in self.scoreboard.items()},
+            "scoreboard_counted_for_game": self._scoreboard_counted_for_game,
+            "wall_last_activity_ts": wall_last_activity_ts,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Room":
+        """Reconstruct a room from a ``to_dict`` payload.
+
+        Sockets are ``None`` on every seat (clients reconnect themselves), a
+        fresh ``asyncio.Lock`` is constructed by the dataclass default factory,
+        and ``last_activity_ts`` is rebased onto the new process's monotonic
+        clock so idle eviction continues to behave correctly.
+        """
+        version = data.get("schema_version")
+        if version != _SCHEMA_VERSION:
+            raise ValueError(
+                f"unsupported room schema_version: {version!r}" f" (expected {_SCHEMA_VERSION})"
+            )
+        seats = [
+            Seat(pid=str(s["pid"]), name=str(s["name"]), is_bot=bool(s["is_bot"]))
+            for s in data.get("seats", [])
+        ]
+        wall = float(data.get("wall_last_activity_ts", time.time()))
+        last_activity_ts = time.monotonic() - max(0.0, time.time() - wall)
+        room = cls(
+            code=str(data["code"]),
+            host_pid=str(data["host_pid"]),
+            seats=seats,
+            game=Game.from_dict(data["game"]) if data.get("game") is not None else None,
+            config=GameConfig.from_dict(data.get("config")),
+            last_activity_ts=last_activity_ts,
+        )
+        scoreboard_raw = data.get("scoreboard", {}) or {}
+        room.scoreboard = {
+            str(pid): {
+                "princess_wins": int(entry.get("princess_wins", 0)),
+                "last_places": int(entry.get("last_places", 0)),
+                "rounds_played": int(entry.get("rounds_played", 0)),
+            }
+            for pid, entry in scoreboard_raw.items()
+        }
+        # The idempotency marker stored the previous process's ``id(game)``,
+        # which is meaningless here. If the saved game had already been counted
+        # (marker non-None) and is still game-over, rebind the marker to the
+        # freshly-loaded ``Game`` instance so the next broadcast does not
+        # double-count. Otherwise leave it ``None``.
+        counted = data.get("scoreboard_counted_for_game")
+        if counted is not None and room.game is not None and room.game.game_over:
+            # pylint: disable=protected-access
+            room._scoreboard_counted_for_game = id(room.game)
+        else:
+            # pylint: disable=protected-access
+            room._scoreboard_counted_for_game = None
+        return room
 
     def public_lobby(self) -> dict:
         return {
@@ -317,6 +406,7 @@ class Room:
                 result.game_over,
             )
             await self.broadcast_state()
+            await REGISTRY.persist(self)
         rlog.error(
             "bot loop hit %d-step lifetime backstop; halting",
             BOT_CAP_BOTS_ONLY,
@@ -324,9 +414,100 @@ class Room:
 
 
 class RoomRegistry:
-    def __init__(self) -> None:
+    def __init__(self, db_path: str | None = None) -> None:
         self._rooms: dict[str, Room] = {}
         self._lock = asyncio.Lock()
+        self._db_path: str | None = db_path
+        self._conn: sqlite3.Connection | None = None
+        if db_path is not None:
+            self._conn = self._open_db(db_path)
+
+    # ---- SQLite plumbing -------------------------------------------------
+
+    @staticmethod
+    def _open_db(path: str) -> sqlite3.Connection:
+        """Open a SQLite connection in autocommit + WAL mode."""
+        conn = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
+        # WAL keeps readers unblocked by writers. ``journal_mode`` returns a row.
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute(CREATE_TABLE_SQL)
+        return conn
+
+    def attach_db(self, path: str) -> None:
+        """Open the DB and bind it to this registry. Idempotent on path."""
+        if self._conn is not None:
+            self._conn.close()
+        self._db_path = path
+        self._conn = self._open_db(path)
+
+    async def persist(self, room: Room) -> None:
+        """Upsert the room's serialized state. Errors are logged, not raised."""
+        if self._conn is None:
+            return
+        try:
+            payload = json.dumps(room.to_dict())
+        except (TypeError, ValueError):
+            _persist_log.exception(
+                "failed to serialize room code=%s; in-memory state unchanged",
+                room.code,
+            )
+            return
+        try:
+            await asyncio.to_thread(self._persist_sync, room.code, payload)
+        except sqlite3.Error:
+            _persist_log.exception(
+                "sqlite write failed for room code=%s; in-memory state unchanged",
+                room.code,
+            )
+
+    def _persist_sync(self, code: str, payload: str) -> None:
+        assert self._conn is not None
+        self._conn.execute(
+            "INSERT OR REPLACE INTO rooms (code, payload, updated_ts) VALUES (?, ?, ?)",
+            (code, payload, time.time()),
+        )
+
+    async def forget(self, code: str) -> None:
+        """Delete the row for ``code``. Errors logged, not raised."""
+        if self._conn is None:
+            return
+        try:
+            await asyncio.to_thread(self._forget_sync, code)
+        except sqlite3.Error:
+            _persist_log.exception("sqlite delete failed for room code=%s", code)
+
+    def _forget_sync(self, code: str) -> None:
+        assert self._conn is not None
+        self._conn.execute("DELETE FROM rooms WHERE code = ?", (code,))
+
+    def restore_all(self) -> int:
+        """Load every persisted room into ``self._rooms``.
+
+        Best-effort: rows with malformed JSON or schema mismatches are logged
+        and skipped so a single bad row never blocks startup. Returns the count
+        of successfully restored rooms.
+        """
+        if self._conn is None:
+            return 0
+        try:
+            rows = list(self._conn.execute("SELECT code, payload FROM rooms"))
+        except sqlite3.Error:
+            _persist_log.exception("sqlite read failed; starting with empty registry")
+            return 0
+        restored = 0
+        for code, payload in rows:
+            try:
+                data = json.loads(payload)
+                room = Room.from_dict(data)
+            except (json.JSONDecodeError, KeyError, ValueError, TypeError):
+                _persist_log.exception("skipping corrupt room row code=%s", code)
+                continue
+            self._rooms[room.code] = room
+            restored += 1
+            _persist_log.info("restored room code=%s seats=%d", room.code, len(room.seats))
+        return restored
+
+    # ---- room lifecycle --------------------------------------------------
 
     async def create(self, host_pid: str, host_name: str) -> Room:
         async with self._lock:
@@ -340,7 +521,8 @@ class RoomRegistry:
             room.seats.append(Seat(pid=host_pid, name=host_name))
             room._ensure_scoreboard_entry(host_pid)  # pylint: disable=protected-access
             self._rooms[code] = room
-            return room
+        await self.persist(room)
+        return room
 
     def get(self, code: str) -> Room | None:
         return self._rooms.get(code.upper())
@@ -351,11 +533,13 @@ class RoomRegistry:
     async def remove(self, code: str) -> None:
         async with self._lock:
             self._rooms.pop(code, None)
+        await self.forget(code)
 
     def evict_idle(self, timeout_seconds: float, now: float | None = None) -> list[str]:
         """Drop rooms with all sockets disconnected for longer than the timeout.
 
-        Returns the list of evicted room codes.
+        Returns the list of evicted room codes. Each evicted code is also
+        deleted from the SQLite store (sync, errors logged not raised).
         """
         clock = time.monotonic() if now is None else now
         evicted: list[str] = []
@@ -366,6 +550,12 @@ class RoomRegistry:
                 continue
             del self._rooms[code]
             evicted.append(code)
+        if self._conn is not None:
+            for code in evicted:
+                try:
+                    self._forget_sync(code)
+                except sqlite3.Error:
+                    _persist_log.exception("sqlite delete failed during eviction for code=%s", code)
         return evicted
 
 

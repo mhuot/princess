@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Rooms now persist to a local SQLite store (default `./princess.db`, override via `PRINCESS_DB_PATH`). Server restart preserves seats, config, in-progress games, and `last_activity_ts`. Clients reconnect via the existing pid sentinel. [persistent-rooms]
 - Session-level scoreboard — Princess wins and last places now persist across rematches within a room. Counts surface in the winner panel and inline next to player names in both UIs. `/abort` resets the score; rematches preserve it. [session-leaderboard]
 - Mid-session WebSocket drops now **auto-reconnect** with exponential backoff and a small `Reconnecting…` banner — no more manual refresh when your signal hiccups. Applies to desktop and mobile. After ~90 seconds of failed attempts the banner falls back to the existing 'Disconnected — refresh to reconnect.' message. [websocket-reconnect]
 - Play & burn animations: pile flashes on burn, pickup sweeps toward your hand, illegal plays shake the selected card, the winner name celebrates. All animations respect `prefers-reduced-motion`. [play-burn-animations]
