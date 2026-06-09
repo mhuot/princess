@@ -250,6 +250,7 @@ async def join_room(request: Request, code: str, body: JoinRoomBody) -> dict:
         raise HTTPException(409, f"name '{existing}' is already taken in this room")
     pid = _new_pid()
     room.seats.append(Seat(pid=pid, name=name))
+    room._ensure_scoreboard_entry(pid)  # pylint: disable=protected-access
     room_logger(room.code).info("seat joined name=%s pid=%s seats=%d", name, pid, len(room.seats))
     await room.broadcast_lobby()
     return {"code": room.code, "pid": pid}
@@ -272,6 +273,7 @@ async def add_bot(request: Request, code: str, body: AddBotBody) -> dict:
     taken = {s.name for s in room.seats}
     bot_name = pick_bot_name(taken)
     room.seats.append(Seat(pid=bot_pid, name=bot_name, is_bot=True))
+    room._ensure_scoreboard_entry(bot_pid)  # pylint: disable=protected-access
     room_logger(room.code).info(
         "bot added name=%r pid=%s seats=%d", bot_name, bot_pid, len(room.seats)
     )
@@ -299,6 +301,7 @@ async def remove_bot(code: str, body: RemoveBotBody) -> dict:
     if not seat.is_bot:
         raise HTTPException(409, "cannot remove a human seat")
     room.seats.remove(seat)
+    room._drop_scoreboard_entry(seat.pid)  # pylint: disable=protected-access
     room_logger(room.code).info(
         "bot removed name=%r pid=%s remaining=%d", seat.name, seat.pid, len(room.seats)
     )
@@ -391,6 +394,10 @@ async def abort_game(code: str, body: StartBody) -> dict:
         return {"ok": True}
     async with room.lock:
         room.reset_for_rematch()
+        # `/abort` is the explicit "end the session" signal — pair the
+        # scoreboard reset with it so the host gets a clean slate without
+        # recreating the room. `/rematch` deliberately preserves counts.
+        room.reset_scoreboard()
     room_logger(code).info("host aborted game; returning to lobby")
     await room.broadcast_lobby()
     return {"ok": True}
@@ -429,6 +436,7 @@ async def leave_room(code: str, body: LeaveBody) -> dict:
         rlog.info("seat converted to bot name=%s pid=%s", seat.name, seat.pid)
     else:
         room.seats.remove(seat)
+        room._drop_scoreboard_entry(seat.pid)  # pylint: disable=protected-access
         rlog.info("seat left name=%s pid=%s remaining=%d", seat.name, seat.pid, len(room.seats))
     if room.game is None:
         await room.broadcast_lobby()

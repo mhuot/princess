@@ -20,6 +20,10 @@ const state = {
   seatWasHuman: new Set(),
   phase: null,
   lastRoom: null,
+  // Session scoreboard from the room-server, keyed by pid. Updated on every
+  // `lobby` and `state` message; consumed by the opponent badge and the
+  // winner-panel "Session record" line.
+  scoreboard: {},
   // Play & burn animations: advance only on NEW last_actions entries.
   lastSeenActionIndex: -1,
   // One-shot celebrate gate keyed to the round-ending action index so the
@@ -363,8 +367,10 @@ function openSocket() {
 
 function handleMessage(msg) {
   if (msg.type === "lobby") {
+    if (msg.room && msg.room.scoreboard) state.scoreboard = msg.room.scoreboard;
     renderLobby(msg.room);
   } else if (msg.type === "state") {
+    if (msg.scoreboard) state.scoreboard = msg.scoreboard;
     renderGame(msg.view);
   } else if (msg.type === "error") {
     showError("action-error", msg.message);
@@ -392,6 +398,25 @@ function appendNameWithTag(parent, name, seat) {
     const span = document.createElement("span");
     span.className = "bot-tag" + (tag === "now a bot" ? " now" : "");
     span.textContent = ` (${tag})`;
+    parent.appendChild(span);
+  }
+}
+
+// Append inline `· Princess N` / `· Last N` badges sourced from the session
+// scoreboard. Empty counters render nothing so new rooms stay visually clean.
+function appendScoreBadges(parent, pid) {
+  const entry = state.scoreboard?.[pid];
+  if (!entry) return;
+  if (entry.princess_wins > 0) {
+    const span = document.createElement("span");
+    span.className = "score-badge";
+    span.textContent = ` · Princess ${entry.princess_wins}`;
+    parent.appendChild(span);
+  }
+  if (entry.last_places > 0) {
+    const span = document.createElement("span");
+    span.className = "score-badge";
+    span.textContent = ` · Last ${entry.last_places}`;
     parent.appendChild(span);
   }
 }
@@ -792,6 +817,7 @@ function renderOpponents(view) {
       if (p.finished) box.classList.add("finished");
       const h = document.createElement("h4");
       appendNameWithTag(h, p.name + (p.finished ? " (out)" : ""), { pid: p.pid, is_bot: p.is_bot });
+      appendScoreBadges(h, p.pid);
       box.appendChild(h);
       box.appendChild(textLine(`Hand: ${p.hand_count}`));
       box.appendChild(textLine(`Face-down: ${p.face_down_count}`));
@@ -889,6 +915,12 @@ function renderYou(view) {
   state.selectedSource = activeSource;
   // Clear selection on state change.
   state.selectedIndices.clear();
+
+  // Refresh the user's hand heading with the latest session badges so the
+  // calling user sees their own count alongside the opponent badges.
+  const heading = $("hand-heading");
+  heading.textContent = "Your cards";
+  appendScoreBadges(heading, state.pid);
 
   $("source-label").textContent = activeSource
     ? `Playing from: ${activeSource.replace("_", "-")}` + (me.your_turn ? " — your turn" : "")
@@ -1196,8 +1228,31 @@ function renderResults(view) {
     if (isLast) li.classList.add("last-place");
     ol.appendChild(li);
   });
+  renderSessionRecord();
+
   $("rematch-btn").hidden = !state.isHost;
   $("rematch-note").hidden = state.isHost;
+}
+
+function renderSessionRecord() {
+  const slot = $("session-record");
+  if (!slot) return;
+  const entry = state.scoreboard?.[state.pid];
+  if (!entry || !entry.rounds_played) {
+    slot.hidden = true;
+    slot.textContent = "";
+    return;
+  }
+  const parts = [`Princess ${entry.princess_wins}`];
+  // Elide the zero last-place clause to keep the line scannable; the user
+  // doesn't need to be told they have zero last-place finishes.
+  if (entry.last_places > 0) {
+    parts.push(`Last place ${entry.last_places}`);
+  }
+  const rounds = entry.rounds_played;
+  parts.push(`${rounds} round${rounds === 1 ? "" : "s"}`);
+  slot.textContent = `Session record: ${parts.join(" · ")}`;
+  slot.hidden = false;
 }
 
 async function playRematch() {

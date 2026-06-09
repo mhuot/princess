@@ -1000,3 +1000,28 @@ button:disabled {
     animation: winner-halo var(--anim-celebrate) ease;
   }
 }
+
+/* --- Session scoreboard (see openspec change `session-leaderboard`) ----- */
+
+/* Inline `· Princess N` / `· Last N` chips next to player names. Reuse the
+ * wild-accent palette so the badge looks like the rest of the special-rank
+ * treatment without inventing a new color. */
+.score-badge {
+  color: var(--accent);
+  font-size: 0.85em;
+  margin-left: 0.15em;
+  font-weight: 600;
+}
+
+/* Single-line session summary under the finishing-order list in the winner
+ * panel. Hidden via the `hidden` attribute when the user has zero rounds. */
+.session-record {
+  color: var(--accent);
+  font-size: 0.95em;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+
+.session-record[hidden] {
+  display: none !important;
+}

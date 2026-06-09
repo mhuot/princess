@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Session-level scoreboard — Princess wins and last places now persist across rematches within a room. Counts surface in the winner panel and inline next to player names in both UIs. `/abort` resets the score; rematches preserve it. [session-leaderboard]
 - Mid-session WebSocket drops now **auto-reconnect** with exponential backoff and a small `Reconnecting…` banner — no more manual refresh when your signal hiccups. Applies to desktop and mobile. After ~90 seconds of failed attempts the banner falls back to the existing 'Disconnected — refresh to reconnect.' message. [websocket-reconnect]
 - Play & burn animations: pile flashes on burn, pickup sweeps toward your hand, illegal plays shake the selected card, the winner name celebrates. All animations respect `prefers-reduced-motion`. [play-burn-animations]
 - Per-IP rate limiting on the four room mutation endpoints — `POST /api/rooms` (6/min), `POST /api/rooms/<code>/join` (30/min), `POST /api/rooms/<code>/bot` (20/min), `POST /api/rooms/<code>/rename` (30/min). Limits are keyed by the first `X-Forwarded-For` entry (real client IP behind nginx). Set `PRINCESS_RATE_LIMIT_DISABLED=1` to bypass in dev/tests. [rate-limit-rooms]

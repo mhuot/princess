@@ -23,6 +23,29 @@ from princess.rooms import (
 )
 
 
+def _zero_entry() -> dict:
+    return {"princess_wins": 0, "last_places": 0, "rounds_played": 0}
+
+
+def _seeded_room(pids: list[str]) -> Room:
+    """Build a room whose seats are pre-registered in the scoreboard.
+
+    Tests for the scoreboard bump path don't need a live `Game`; they synthesize
+    a tiny stand-in object exposing only `game_over` and `finished_order`.
+    """
+    room = Room(code="SCORE", host_pid=pids[0])
+    for pid in pids:
+        room.seats.append(Seat(pid=pid, name=pid.upper(), is_bot=False))
+        room._ensure_scoreboard_entry(pid)  # pylint: disable=protected-access
+    return room
+
+
+class _FakeGame:  # pylint: disable=too-few-public-methods
+    def __init__(self, finished_order: list[str], game_over: bool = True) -> None:
+        self.finished_order = list(finished_order)
+        self.game_over = game_over
+
+
 def _bots_only_room() -> Room:
     room = Room(code="TEST", host_pid="bot-a")
     room.seats.append(Seat(pid="bot-a", name="Bot A", is_bot=True))
@@ -127,3 +150,119 @@ def test_registry_evict_idle_spares_rooms_with_connected_sockets():
 
     evicted = registry.evict_idle(timeout_seconds=300, now=2000.0)
     assert evicted == []
+
+
+# --- Session scoreboard ------------------------------------------------------
+
+
+def test_scoreboard_ensures_fresh_entry() -> None:
+    room = Room(code="X", host_pid="p1")
+    room._ensure_scoreboard_entry("p1")  # pylint: disable=protected-access
+    assert room.scoreboard["p1"] == _zero_entry()
+
+
+def test_scoreboard_ensure_is_idempotent_for_existing_pid() -> None:
+    room = _seeded_room(["p1"])
+    room.scoreboard["p1"]["princess_wins"] = 5
+    room._ensure_scoreboard_entry("p1")  # pylint: disable=protected-access
+    assert room.scoreboard["p1"]["princess_wins"] == 5
+
+
+def test_scoreboard_drop_entry_removes_pid() -> None:
+    room = _seeded_room(["p1", "p2"])
+    room._drop_scoreboard_entry("p2")  # pylint: disable=protected-access
+    assert "p2" not in room.scoreboard
+    assert "p1" in room.scoreboard
+
+
+def test_scoreboard_drop_missing_pid_is_noop() -> None:
+    room = _seeded_room(["p1"])
+    room._drop_scoreboard_entry("ghost")  # pylint: disable=protected-access
+    assert "p1" in room.scoreboard
+
+
+def test_scoreboard_bump_winner_and_last_place() -> None:
+    room = _seeded_room(["p0", "p1", "p2"])
+    room.game = _FakeGame(["p1", "p0", "p2"])
+    room._bump_scoreboard_if_needed()  # pylint: disable=protected-access
+    assert room.scoreboard["p1"]["princess_wins"] == 1
+    assert room.scoreboard["p2"]["last_places"] == 1
+    assert room.scoreboard["p0"]["last_places"] == 0
+    for pid in ["p0", "p1", "p2"]:
+        assert room.scoreboard[pid]["rounds_played"] == 1
+
+
+def test_scoreboard_bump_is_idempotent_within_same_game() -> None:
+    room = _seeded_room(["p0", "p1"])
+    room.game = _FakeGame(["p0", "p1"])
+    room._bump_scoreboard_if_needed()  # pylint: disable=protected-access
+    room._bump_scoreboard_if_needed()  # pylint: disable=protected-access
+    assert room.scoreboard["p0"]["princess_wins"] == 1
+    assert room.scoreboard["p1"]["last_places"] == 1
+    assert room.scoreboard["p0"]["rounds_played"] == 1
+    assert room.scoreboard["p1"]["rounds_played"] == 1
+
+
+def test_scoreboard_bump_skips_when_game_not_over() -> None:
+    room = _seeded_room(["p0", "p1"])
+    room.game = _FakeGame(["p0", "p1"], game_over=False)
+    room._bump_scoreboard_if_needed()  # pylint: disable=protected-access
+    assert room.scoreboard["p0"] == _zero_entry()
+
+
+def test_scoreboard_two_player_bumps_both_ranks() -> None:
+    room = _seeded_room(["p0", "p1"])
+    room.game = _FakeGame(["p0", "p1"])
+    room._bump_scoreboard_if_needed()  # pylint: disable=protected-access
+    assert room.scoreboard["p0"]["princess_wins"] == 1
+    assert room.scoreboard["p1"]["last_places"] == 1
+
+
+def test_scoreboard_rematch_preserves_counts_and_recounts_new_game() -> None:
+    room = _seeded_room(["p0", "p1"])
+    room.game = _FakeGame(["p0", "p1"])
+    room._bump_scoreboard_if_needed()  # pylint: disable=protected-access
+    # Simulate `start_game` clearing the counted marker for a new round.
+    room._scoreboard_counted_for_game = None  # pylint: disable=protected-access
+    room.game = _FakeGame(["p1", "p0"])
+    room._bump_scoreboard_if_needed()  # pylint: disable=protected-access
+    assert room.scoreboard["p0"]["princess_wins"] == 1
+    assert room.scoreboard["p1"]["princess_wins"] == 1
+    assert room.scoreboard["p0"]["rounds_played"] == 2
+    assert room.scoreboard["p1"]["rounds_played"] == 2
+
+
+def test_scoreboard_reset_zeros_existing_entries() -> None:
+    room = _seeded_room(["p0", "p1"])
+    room.scoreboard["p0"]["princess_wins"] = 3
+    room.scoreboard["p1"]["last_places"] = 2
+    room.reset_scoreboard()
+    assert room.scoreboard["p0"] == _zero_entry()
+    assert room.scoreboard["p1"] == _zero_entry()
+    assert set(room.scoreboard.keys()) == {"p0", "p1"}
+
+
+def test_scoreboard_public_lobby_includes_scoreboard() -> None:
+    room = _seeded_room(["p0", "p1"])
+    room.scoreboard["p0"]["princess_wins"] = 4
+    payload = room.public_lobby()
+    assert payload["scoreboard"]["p0"]["princess_wins"] == 4
+    # The dict is a copy — mutating the broadcast must not poke back.
+    payload["scoreboard"]["p0"]["princess_wins"] = 99
+    assert room.scoreboard["p0"]["princess_wins"] == 4
+
+
+def test_scoreboard_skips_unknown_pid_defensively() -> None:
+    room = _seeded_room(["p0"])
+    room.game = _FakeGame(["p0", "ghost"])
+    # The defensive guard must skip "ghost" without raising even though it has
+    # no scoreboard entry; the seated winner still gets credit.
+    room._bump_scoreboard_if_needed()  # pylint: disable=protected-access
+    assert room.scoreboard["p0"]["princess_wins"] == 1
+    assert "ghost" not in room.scoreboard
+
+
+def test_registry_create_seeds_host_scoreboard_entry() -> None:
+    registry = RoomRegistry()
+    room = asyncio.run(registry.create(host_pid="host", host_name="Host"))
+    assert room.scoreboard["host"] == _zero_entry()
