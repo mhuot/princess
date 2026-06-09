@@ -97,6 +97,31 @@ class Player:
     def has_any_cards(self) -> bool:
         return bool(self.hand or self.face_up or self.face_down)
 
+    def to_dict(self) -> dict:
+        return {
+            "pid": self.pid,
+            "name": self.name,
+            "hand": [c.to_dict() for c in self.hand],
+            "face_up": [c.to_dict() for c in self.face_up],
+            "face_down": [c.to_dict() for c in self.face_down],
+            "choose": [c.to_dict() for c in self.choose],
+            "finished": self.finished,
+            "ready": self.ready,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Player":
+        return cls(
+            pid=str(data["pid"]),
+            name=str(data["name"]),
+            hand=[Card.from_dict(c) for c in data.get("hand", [])],
+            face_up=[Card.from_dict(c) for c in data.get("face_up", [])],
+            face_down=[Card.from_dict(c) for c in data.get("face_down", [])],
+            choose=[Card.from_dict(c) for c in data.get("choose", [])],
+            finished=bool(data.get("finished", False)),
+            ready=bool(data.get("ready", False)),
+        )
+
 
 @dataclass
 class PlayResult:
@@ -499,6 +524,49 @@ class Game:
                 for p in self.players
             ],
         }
+
+    def to_dict(self) -> dict:
+        """Full snapshot for write-through persistence.
+
+        Bypasses ``public_state`` (which is the client-facing view) so we keep
+        every player's hidden state: hand, face_down, choose. The companion
+        ``from_dict`` skips ``__init__``'s deal/shuffle work.
+        """
+        return {
+            "players": [p.to_dict() for p in self.players],
+            "config": self.config.to_dict(),
+            "deck": [c.to_dict() for c in self.deck],
+            "pile": [c.to_dict() for c in self.pile],
+            "current_idx": self.current_idx,
+            "phase": self.phase,
+            "game_over": self.game_over,
+            "last_actions": [dict(entry) for entry in self.last_actions],
+            "finished_order": list(self.finished_order),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Game":
+        """Rebuild a ``Game`` without re-running setup.
+
+        ``object.__new__`` skips ``__init__`` so the saved ``deck`` / ``pile`` /
+        hands are preserved verbatim instead of being re-dealt. A fresh
+        ``random.Random`` is attached because the engine RNG state is not part
+        of the snapshot (post-deal, only ``_play_face_down`` reads it, and only
+        indirectly via ``decide`` outside this class).
+        """
+        game = object.__new__(cls)
+        game.players = [Player.from_dict(p) for p in data["players"]]
+        game.config = GameConfig.from_dict(data.get("config"))
+        game.deck = [Card.from_dict(c) for c in data.get("deck", [])]
+        game.pile = [Card.from_dict(c) for c in data.get("pile", [])]
+        game.current_idx = int(data.get("current_idx", 0))
+        game.phase = str(data.get("phase", "playing"))
+        game.game_over = bool(data.get("game_over", False))
+        game.last_actions = [dict(entry) for entry in data.get("last_actions", [])]
+        game.finished_order = [str(pid) for pid in data.get("finished_order", [])]
+        # pylint: disable=protected-access
+        game._rng = random.Random()
+        return game
 
     def view_for(self, pid: str, bot_pids: set[str] | None = None) -> dict:
         state = self.public_state(bot_pids=bot_pids)

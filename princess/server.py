@@ -25,6 +25,7 @@ import logging
 import os
 import secrets
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -37,7 +38,7 @@ from slowapi.errors import RateLimitExceeded
 from .bot_names import pick_bot_name
 from .game import GameConfig
 from .logging_config import LOG_BUFFER, room_logger, setup_logging
-from .rooms import MAX_PLAYERS, MIN_PLAYERS, REGISTRY, Seat, parse_source
+from .rooms import DEFAULT_DB_PATH, MAX_PLAYERS, MIN_PLAYERS, REGISTRY, Seat, parse_source
 
 ROOM_IDLE_TIMEOUT = float(os.environ.get("ROOM_IDLE_TIMEOUT_SECONDS", "300"))
 
@@ -100,7 +101,19 @@ log = logging.getLogger("princess.server")
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
-app = FastAPI(title="Princess Card Game")
+
+@asynccontextmanager
+async def lifespan(app_: FastAPI):
+    """Open the SQLite store and restore any persisted rooms on startup."""
+    del app_  # FastAPI passes the app; we only need REGISTRY.
+    db_path = os.environ.get("PRINCESS_DB_PATH", DEFAULT_DB_PATH)
+    REGISTRY.attach_db(db_path)
+    count = REGISTRY.restore_all()
+    log.info("restored %d rooms from %s", count, db_path)
+    yield
+
+
+app = FastAPI(title="Princess Card Game", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -226,6 +239,7 @@ async def create_room(request: Request, body: CreateRoomBody) -> dict:
     _sweep_idle_rooms()
     name = body.name.strip()
     pid = _new_pid()
+    # ``REGISTRY.create`` already persists the freshly-created room.
     room = await REGISTRY.create(host_pid=pid, host_name=name)
     log.info("room created code=%s host=%s pid=%s", room.code, name, pid)
     room_logger(room.code).info("room opened by host=%s pid=%s", name, pid)
@@ -253,6 +267,7 @@ async def join_room(request: Request, code: str, body: JoinRoomBody) -> dict:
     room._ensure_scoreboard_entry(pid)  # pylint: disable=protected-access
     room_logger(room.code).info("seat joined name=%s pid=%s seats=%d", name, pid, len(room.seats))
     await room.broadcast_lobby()
+    await REGISTRY.persist(room)
     return {"code": room.code, "pid": pid}
 
 
@@ -278,6 +293,7 @@ async def add_bot(request: Request, code: str, body: AddBotBody) -> dict:
         "bot added name=%r pid=%s seats=%d", bot_name, bot_pid, len(room.seats)
     )
     await room.broadcast_lobby()
+    await REGISTRY.persist(room)
     return {"ok": True, "name": bot_name}
 
 
@@ -306,6 +322,7 @@ async def remove_bot(code: str, body: RemoveBotBody) -> dict:
         "bot removed name=%r pid=%s remaining=%d", seat.name, seat.pid, len(room.seats)
     )
     await room.broadcast_lobby()
+    await REGISTRY.persist(room)
     return {"ok": True}
 
 
@@ -343,6 +360,7 @@ async def rename_seat(request: Request, code: str, body: RenameBody) -> dict:
         await room.broadcast_lobby()
     else:
         await room.broadcast_state()
+    await REGISTRY.persist(room)
     return {"ok": True, "name": new_name}
 
 
@@ -358,6 +376,7 @@ async def update_config(code: str, body: ConfigBody) -> dict:
     room.config = GameConfig.from_dict(body.config)
     room_logger(room.code).info("config updated %s", room.config.to_dict())
     await room.broadcast_lobby()
+    await REGISTRY.persist(room)
     return {"ok": True, "config": room.config.to_dict()}
 
 
@@ -379,6 +398,7 @@ async def end_round(code: str, body: StartBody) -> dict:
             raise HTTPException(409, result.error or "could not end round")
     room_logger(code).info("host ended round; finishing_order=%s", room.game.finished_order)
     await room.broadcast_state()
+    await REGISTRY.persist(room)
     return {"ok": True}
 
 
@@ -400,6 +420,7 @@ async def abort_game(code: str, body: StartBody) -> dict:
         room.reset_scoreboard()
     room_logger(code).info("host aborted game; returning to lobby")
     await room.broadcast_lobby()
+    await REGISTRY.persist(room)
     return {"ok": True}
 
 
@@ -442,6 +463,7 @@ async def leave_room(code: str, body: LeaveBody) -> dict:
         await room.broadcast_lobby()
     else:
         await room.broadcast_state()
+    await REGISTRY.persist(room)
     if converted:
         # New bot may now be current — drive its turn(s).
         await room.run_bots()
@@ -462,6 +484,7 @@ async def rematch(code: str, body: StartBody) -> dict:
         room.start_game()
     room_logger(room.code).info("rematch started")
     await room.broadcast_state()
+    await REGISTRY.persist(room)
     await room.run_bots()
     return {"ok": True}
 
@@ -485,6 +508,7 @@ async def start_game(code: str, body: StartBody) -> dict:
         room.config.to_dict(),
     )
     await room.broadcast_state()
+    await REGISTRY.persist(room)
     await room.run_bots()
     return {"ok": True}
 
@@ -578,4 +602,6 @@ async def _handle_message(room, seat: Seat, msg: dict) -> None:
                 result.game_over,
             )
     await room.broadcast_state()
+    if result.ok:
+        await REGISTRY.persist(room)
     await room.run_bots()

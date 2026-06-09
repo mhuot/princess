@@ -169,6 +169,25 @@ services:
       - /var/log/princess:/var/log/princess
 ```
 
+### Persistent rooms
+
+Rooms (seats, host, config, in-progress games, and the session scoreboard)
+persist to an embedded SQLite store so a restart — including the deploy
+loop that ships every push to `main` — does not wipe live lobbies or
+mid-round state. Clients reconnect via the existing pid-in-`localStorage`
+sentinel; the WS handler finds the restored seat by code and resumes.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PRINCESS_DB_PATH` | `./princess.db` | SQLite file path. Read once at startup. |
+
+In a systemd / docker deployment, point this at a writable persistent
+path, e.g. `/var/lib/princess/rooms.db`. The schema is a single table
+(`rooms(code TEXT PRIMARY KEY, payload TEXT, updated_ts REAL)`) with the
+full room serialized as a JSON blob; write-through on every mutating
+handler keeps it in sync. Corrupt rows are logged and skipped on
+startup so a single bad row never blocks the server from coming back up.
+
 ## Contributing
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md). The short version:
