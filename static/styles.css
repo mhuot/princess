@@ -68,6 +68,31 @@ input:focus-visible,
   left: 0;
 }
 
+/* websocket-reconnect: connection banner ---------------------------------- */
+#conn-banner {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  margin-top: 0.25rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 0 0 0.5rem 0.5rem;
+  background: #1a1f2e;
+  color: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  /* White (#ffffff) on #1a1f2e gives ~16:1 contrast — AAA. */
+}
+#conn-banner.reconnecting { background: #1a1f2e; }
+#conn-banner.reconnected { background: #0f3a1f; }
+#conn-banner.lost { background: #4a0f12; }
+@media (prefers-reduced-motion: no-preference) {
+  #conn-banner { transition: opacity 150ms ease-out; }
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;

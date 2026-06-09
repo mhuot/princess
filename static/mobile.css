@@ -43,6 +43,31 @@ html, body {
 .skip-link { position: absolute; left: -1000px; }
 .skip-link:focus { left: 0; background: var(--accent); color: var(--bg); padding: 0.5rem; }
 
+/* websocket-reconnect: connection banner ---------------------------------- */
+#m-conn-banner {
+  position: fixed;
+  top: env(safe-area-inset-top, 0);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  margin-top: 0.2rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 0 0 0.5rem 0.5rem;
+  background: #1a1f2e;
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  /* White (#ffffff) on #1a1f2e gives ~16:1 contrast — AAA. */
+}
+#m-conn-banner.reconnecting { background: #1a1f2e; }
+#m-conn-banner.reconnected { background: #0f3a1f; }
+#m-conn-banner.lost { background: #4a0f12; }
+@media (prefers-reduced-motion: no-preference) {
+  #m-conn-banner { transition: opacity 150ms ease-out; }
+}
+
 button {
   font: inherit;
   border: none;

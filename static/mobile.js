@@ -28,6 +28,13 @@ const state = {
   // Set while a `play` message is in flight so an incoming error toast can
   // be attributed to that play (and shake the selected cards).
   expectingPlayReply: false,
+  // Connection-state machine for websocket-reconnect. "live" hides the
+  // banner; "reconnecting" / "reconnected" / "lost" surface it.
+  connState: "live",
+  _reconnectAttempt: 0,
+  _firstCloseTs: null,
+  _reconnectTimer: null,
+  _reconnectedFlashTimer: null,
 };
 
 let handEndObserver = null;
@@ -294,6 +301,44 @@ function enterRoom() {
   openSocket();
 }
 
+// --- websocket-reconnect: connection banner + backoff helpers -------------
+
+const CONN_BANNER_TEXT = {
+  live: "",
+  reconnecting: "Reconnecting…",
+  reconnected: "Reconnected",
+  lost: "Disconnected — refresh to reconnect.",
+};
+
+function setConnState(label) {
+  state.connState = label;
+  const banner = $("m-conn-banner");
+  if (banner) {
+    banner.textContent = CONN_BANNER_TEXT[label] || "";
+    banner.classList.remove("reconnecting", "reconnected", "lost");
+    if (label !== "live") banner.classList.add(label);
+    banner.hidden = label === "live";
+  }
+  const disableActions = label === "reconnecting" || label === "lost";
+  const playBtn = $("m-play-btn");
+  const pickupBtn = $("m-pickup-btn");
+  if (disableActions) {
+    if (playBtn) playBtn.disabled = true;
+    if (pickupBtn) pickupBtn.disabled = true;
+  } else {
+    if (playBtn) playBtn.disabled = false;
+    if (pickupBtn) pickupBtn.disabled = false;
+  }
+}
+
+function scheduleReconnect() {
+  const attempt = state._reconnectAttempt;
+  const delayMs = Math.min(2 ** (attempt - 1), 16) * 1000;
+  if (state._reconnectTimer) clearTimeout(state._reconnectTimer);
+  setConnState("reconnecting");
+  state._reconnectTimer = setTimeout(openSocket, delayMs);
+}
+
 function openSocket() {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   state.socket = new WebSocket(`${proto}://${location.host}/ws/${state.code}/${state.pid}`);
@@ -301,6 +346,21 @@ function openSocket() {
   state.socket.addEventListener("message", (e) => {
     state._wsGotMessage = true;
     handleMessage(JSON.parse(e.data));
+    if (state.connState === "reconnecting") {
+      // First inbound message after a reopen — server has resynced us.
+      if (state._reconnectTimer) {
+        clearTimeout(state._reconnectTimer);
+        state._reconnectTimer = null;
+      }
+      state._reconnectAttempt = 0;
+      state._firstCloseTs = null;
+      setConnState("reconnected");
+      if (state._reconnectedFlashTimer) clearTimeout(state._reconnectedFlashTimer);
+      state._reconnectedFlashTimer = setTimeout(() => {
+        state._reconnectedFlashTimer = null;
+        setConnState("live");
+      }, 1500);
+    }
   });
   state.socket.addEventListener("close", (event) => {
     console.info("ws close", { code: event.code, reason: event.reason });
@@ -315,12 +375,25 @@ function openSocket() {
       return;
     }
     if (!state._wsGotMessage) {
-      // Non-4001 close before the first message: leave for the planned
-      // websocket-reconnect change. Today, surface the disconnect notice.
+      // Never connected successfully — show the static disconnect notice.
+      // The websocket-reconnect retry loop only engages once we've had at
+      // least one inbound message (i.e. the seat was actually live).
       $("m-waiting").textContent = "Disconnected. Refresh to reconnect.";
       return;
     }
-    $("m-waiting").textContent = "Disconnected. Refresh to reconnect.";
+    // Mid-session drop: start (or continue) the exponential-backoff retry.
+    if (state._firstCloseTs === null) state._firstCloseTs = Date.now();
+    state._reconnectAttempt += 1;
+    const elapsed = Date.now() - state._firstCloseTs;
+    if (state._reconnectAttempt > 10 || elapsed > 90_000) {
+      if (state._reconnectTimer) {
+        clearTimeout(state._reconnectTimer);
+        state._reconnectTimer = null;
+      }
+      setConnState("lost");
+      return;
+    }
+    scheduleReconnect();
   });
 }
 
