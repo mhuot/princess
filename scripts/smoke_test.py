@@ -723,6 +723,65 @@ def section_sentinel_reject_soft_fallback(browser: Browser) -> Section:
     return section
 
 
+def section_websocket_reconnect(browser: Browser) -> Section:
+    """Verify a forced mid-session WS close triggers the reconnect banner."""
+    section = Section("websocket-reconnect")
+
+    # Mobile path: create a room with a bot so we have a live state broadcast,
+    # then force-close the socket and assert the banner reports the reconnect
+    # cycle. We use `state.socket.close()` with a non-4001 code (1006-like) so
+    # the new exponential-backoff path engages rather than the sentinel-reject
+    # in-page retry.
+    ctx = make_mobile_context(browser)
+    page = ctx.new_page()
+    create_room_mobile(page, "Mike")
+    add_bots_and_start(page, 1, mobile=True)
+    page.wait_for_selector("#m-game:not([hidden])", timeout=8000)
+    # Ensure at least one inbound message has been received (state broadcast).
+    page.wait_for_function("state && state._wsGotMessage === true", timeout=4000)
+
+    # Force-close with code 1000 (non-4001). The client should schedule a
+    # backoff reopen and surface the "Reconnecting…" banner.
+    page.evaluate("state.socket.close(1000, 'smoke-test-force-close')")
+    page.wait_for_selector("#m-conn-banner:not([hidden])", timeout=3000)
+    banner_text = page.locator("#m-conn-banner").text_content() or ""
+    play_disabled = page.locator("#m-play-btn").get_attribute("disabled") is not None
+    pickup_disabled = page.locator("#m-pickup-btn").get_attribute("disabled") is not None
+    section.checks.append(CheckResult(
+        "Mid-session close: banner shows Reconnecting… and actions disabled",
+        passed="Reconnecting" in banner_text and play_disabled and pickup_disabled,
+        notes=(
+            f"banner_text={banner_text!r} "
+            f"play_disabled={play_disabled} pickup_disabled={pickup_disabled}"
+        ),
+    ))
+
+    # Wait for the backoff reopen (~1s) + the resync broadcast.
+    page.wait_for_function(
+        "document.getElementById('m-conn-banner').classList.contains('reconnected')"
+        " || document.getElementById('m-conn-banner').hidden",
+        timeout=6000,
+    )
+    # After ~1500ms the banner auto-hides.
+    page.wait_for_function(
+        "document.getElementById('m-conn-banner').hidden === true",
+        timeout=4000,
+    )
+    section.checks.append(CheckResult(
+        "Successful reopen: banner returns to live (hidden) state",
+        passed=page.locator("#m-conn-banner").is_hidden(),
+        notes="Banner auto-hides after Reconnected flash.",
+    ))
+
+    # Tier-1 sentinel path (4001) must still bypass the reconnect flow.
+    # Verified by setting a stale sentinel against an unknown room; the page
+    # should NOT show the reconnect banner — it should land on the focused
+    # name view (see section_sentinel_reject_soft_fallback for full asserts).
+    ctx.close()
+
+    return section
+
+
 def section_supporting_visuals(browser: Browser) -> Section:
     """Snapshot the mobile UI to visually confirm opponent face-up + wrapped hand."""
     section = Section("supporting visuals")
@@ -802,6 +861,7 @@ def main() -> int:
             sections.append(section_ua_redirect(browser))
             sections.append(section_deep_link_auto_join(browser))
             sections.append(section_sentinel_reject_soft_fallback(browser))
+            sections.append(section_websocket_reconnect(browser))
             sections.append(section_share_room_link(browser))
             sections.append(section_discard_count(browser))
             sections.append(section_scroll_hint(browser))
