@@ -34,7 +34,7 @@ The mobile UI SHALL render correctly at a minimum portrait viewport width of **3
 The mobile game view SHALL stack vertically (top to bottom):
 
 1. **Top bar** — room code (tap to copy), `?` rules icon, **Rename** button, **Quit** button, status ticker (single-line newest action).
-2. **Opponents strip** — single horizontal row, scrolls if needed; each opponent chip SHALL render, in vertical order: name + (bot) tag, current-turn / finished indicator, a **face-up cards row** showing the cards in `view.players[i].face_up` as small mini cards (about 22 × 32 px), and a counts line reading `hand N · down N`. Face-up cards whose rank equals `2`, `10`, or `view.config.reverse_rank` SHALL render with the wild `★` corner glyph. When an opponent has zero face-up cards remaining, the face-up row SHALL collapse to no extra height.
+2. **Opponents strip** — single horizontal row, scrolls if needed; each opponent chip SHALL render, in vertical order: name + (bot) tag + **session badges** (this change), current-turn / finished indicator, a **face-up cards row** showing the cards in `view.players[i].face_up` as small mini cards (about 22 × 32 px), and a counts line reading `hand N · down N`. Face-up cards whose rank equals `2`, `10`, or `view.config.reverse_rank` SHALL render with the wild `★` corner glyph. When an opponent has zero face-up cards remaining, the face-up row SHALL collapse to no extra height.
 3. **Pile area** — three columns: a **left stats column** containing a **Deck** count (from `view.deck_count`) stacked above a **Discard** count (from `view.pile_size`); the **center pile card** (full-size, displaying the discard's top); and a **right stats column** containing the **Rule** indicator. Each stat SHALL render a small dim label above a larger accent-colored value. The Discard value SHALL always render — including `0` when the discard pile is empty.
 4. **Your table** — face-up and face-down cards in a single mini-row (same as desktop layout, just smaller).
 5. **Hand toolbar** — a small row above the hand containing a **Sort** toggle button (label flips between `Sort: rank` and `Sort: off`) and a **count** badge (`X cards`). `aria-pressed` reflects the sort state.
@@ -60,6 +60,14 @@ If the wrapped hand exceeds the available vertical space, the page SHALL scroll 
 - The implementation SHALL use an `IntersectionObserver` on a sentinel element appended at the end of `#m-hand-row` with a `rootMargin` that treats the action bar's top edge as the bottom of the observed area.
 
 The hand SHALL handle multi-rank selection identically to the desktop UI (cards must share rank; selecting a different rank clears the prior selection). When sort is ON (default), the hand SHALL be rendered in rank-ascending order, breaking ties by the card's original server-side index (stable). Selecting a sorted card SHALL play the correct server-side index, not the rendered-position index.
+
+Each opponent chip's name line — and the calling user's own name wherever it renders in the play view — SHALL append inline session-scoreboard badges sourced from the top-level `scoreboard` field on the broadcast envelope:
+
+- When `scoreboard[pid]["princess_wins"] > 0`, append `· Princess <N>` inline after the name and any `(bot)` tag.
+- When `scoreboard[pid]["last_places"] > 0`, append `· Last <N>` after the Princess badge (or directly after the name if no Princess badge is present).
+- When both counters are `0`, render no badges (the chip's name line stays clean).
+
+Badges SHALL use the same accent color family as the wild `★` glyph. Badges SHALL render in a smaller font size than the player's name so the chip's existing horizontal density isn't broken; the chip's `min-width` does not need to grow because the badge text is short.
 
 #### Scenario: Opponent face-up cards rendered
 
@@ -176,6 +184,20 @@ The hand SHALL handle multi-rank selection identically to the desktop UI (cards 
 - **WHEN** any control (action button, hand card, sort button, opponent chip, top-bar button, scroll-hint chip) is rendered
 - **THEN** its bounding box is at least 44 × 44 logical pixels
 
+#### Scenario: Opponent chip name shows Princess badge when wins exist
+
+- **WHEN** an opponent's scoreboard entry has `princess_wins == 2` and `last_places == 0`
+- **THEN** the opponent's chip renders the name followed by `· Princess 2` inline (after any `(bot)` tag) in the wild-accent color, and shows no `Last` badge
+
+#### Scenario: Opponent chip shows both badges when both counters > 0
+
+- **WHEN** an opponent's scoreboard entry has `princess_wins == 1` and `last_places == 1`
+- **THEN** the chip renders `<name> · Princess 1 · Last 1` inline
+
+#### Scenario: Opponent chip with zero counters shows no badge
+
+- **WHEN** an opponent's scoreboard entry has `princess_wins == 0` and `last_places == 0`
+- **THEN** the chip renders the bare name with no `· Princess` or `· Last` suffix
 ### Requirement: Mobile lobby
 
 The mobile lobby SHALL provide: name input, **Create new room** button, room-code input, **Join room** button. Once in a room, the lobby SHALL list seats with name + host/bot/offline tags. The caller's own seat SHALL be renameable via a bottom-sheet rename dialog (`#m-rename-sheet`) reachable from a Rename affordance accessible from the lobby and the game-view top bar.
@@ -255,9 +277,11 @@ The setup phase SHALL reset `state.setupSelected` on transition into setup (same
 
 ### Requirement: Mobile end-of-round panel
 
-When `view.game_over` is true, the mobile UI SHALL hide the game surface (top bar, opponents strip, pile, your table, fan-out hand, action bar) and render a full-screen winner panel with the same content shape as the desktop UI: kicker, winner name, subtitle, winning-action line (from `view.last_actions[-1]` with the same 🔥 / ↑ / 👑 glyphs), finishing order, **Play a rematch** (host), **Back to lobby**, and a "Waiting for host…" note for non-hosts.
+When `view.game_over` is true, the mobile UI SHALL hide the game surface (top bar, opponents strip, pile, your table, fan-out hand, action bar) and render a full-screen winner panel with the same content shape as the desktop UI: kicker, winner name, subtitle, winning-action line (from `view.last_actions[-1]` with the same 🔥 / ↑ / 👑 glyphs), finishing order, **Session record line** (this change), **Play a rematch** (host), **Back to lobby**, and a "Waiting for host…" note for non-hosts.
 
 The mobile UI SHALL enforce hiding via paired `[hidden] { display: none !important; }` CSS rules so the `hidden` attribute always wins (same lesson as the desktop fix).
+
+The **Session record line** SHALL be sourced from the top-level `scoreboard` field on the WebSocket `state` envelope (the same field the room-server attaches alongside `view`). It SHALL display the calling user's entry only, in the form `Session record: Princess <P> · Last place <L> · <R> rounds`, where `<P>` is `princess_wins`, `<L>` is `last_places`, and `<R>` is `rounds_played`. When `last_places == 0` the `· Last place 0` segment MAY be elided. When `rounds_played == 0` the line SHALL be hidden entirely. The line SHALL render at a smaller font size than the finishing-order list to fit the narrow mobile column, but in the same accent color treatment used elsewhere in the panel so the eye groups it as session-context information.
 
 #### Scenario: Mobile winner panel takes the full screen
 
@@ -269,6 +293,15 @@ The mobile UI SHALL enforce hiding via paired `[hidden] { display: none !importa
 - **WHEN** the mobile winner panel renders for a round ended by Mike flipping his last card
 - **THEN** a line `"Mike flipped <card> 👑 Mike"` appears between the winner subtitle and the finishing order list
 
+#### Scenario: Mobile session record line rendered after rematches
+
+- **WHEN** the calling user has played 4 rounds in this room and the broadcast `scoreboard[user_pid]` is `{"princess_wins": 3, "last_places": 1, "rounds_played": 4}`
+- **THEN** the mobile winner panel contains a "Session record: Princess 3 · Last place 1 · 4 rounds" line below the finishing-order list, in a smaller font size than the finishing-order list
+
+#### Scenario: Mobile session record line hidden when no rounds played
+
+- **WHEN** the broadcast `scoreboard[user_pid]["rounds_played"] == 0` (defensive case)
+- **THEN** the Session record line is absent from the mobile winner panel
 ### Requirement: Mobile quit modal (bottom sheet)
 
 The mobile UI SHALL present the Quit modal as a **bottom sheet** that slides up from the screen bottom, rather than a centered `<dialog>`. The options offered are the same as the desktop UI:
