@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -94,21 +95,44 @@ def make_desktop_context(browser: Browser) -> BrowserContext:
 def create_room_desktop(page: Page, host_name: str = "Mike") -> str:
     page.goto(BASE + "/")
     page.fill("#player-name", host_name)
-    page.click("#create-btn")
-    page.wait_for_selector("#room-code-display:not(:empty)", timeout=8000)
-    page.wait_for_selector("#seat-list li", timeout=8000)
-    return page.locator("#room-code-display").inner_text().strip()
+    for attempt in range(3):
+        page.click("#create-btn")
+        try:
+            page.wait_for_selector("#room-code-display:not(:empty)", timeout=8000)
+            page.wait_for_selector("#seat-list li", timeout=8000)
+            return page.locator("#room-code-display").inner_text().strip()
+        except Exception:  # pylint: disable=broad-except
+            err_text = ""
+            try:
+                err_text = page.locator("#lobby-error").inner_text()
+            except Exception:  # pylint: disable=broad-except
+                pass
+            if "rate limit" not in err_text.lower() or attempt == 2:
+                raise
+            page.wait_for_timeout(12000)
+    raise RuntimeError("create_room_desktop exhausted retries")
 
 
 def create_room_mobile(page: Page, host_name: str = "Mike") -> str:
     page.goto(BASE + "/m")
     page.fill("#m-name", host_name)
-    page.click("#m-create-btn")
-    page.wait_for_selector("#m-room-code:not(:empty)", timeout=8000)
-    # Wait for the WebSocket lobby broadcast to populate state.lastRoom so the
-    # solo-start sheet logic has accurate seat counts.
-    page.wait_for_selector("#m-seat-list li", timeout=8000)
-    return page.locator("#m-room-code").inner_text().strip()
+    # Retry on rate-limit (6/min on /api/rooms). Try once, sleep ~12s, retry once.
+    for attempt in range(3):
+        page.click("#m-create-btn")
+        try:
+            page.wait_for_selector("#m-room-code:not(:empty)", timeout=8000)
+            page.wait_for_selector("#m-seat-list li", timeout=8000)
+            return page.locator("#m-room-code").inner_text().strip()
+        except Exception:  # pylint: disable=broad-except
+            err_text = ""
+            try:
+                err_text = page.locator("#m-lobby-error").inner_text()
+            except Exception:  # pylint: disable=broad-except
+                pass
+            if "rate limit" not in err_text.lower() or attempt == 2:
+                raise
+            page.wait_for_timeout(12000)
+    raise RuntimeError("create_room_mobile exhausted retries")
 
 
 def add_bots_and_start(page: Page, n: int, *, mobile: bool) -> None:
@@ -736,9 +760,14 @@ def section_websocket_reconnect(browser: Browser) -> Section:
     page = ctx.new_page()
     create_room_mobile(page, "Mike")
     add_bots_and_start(page, 1, mobile=True)
-    page.wait_for_selector("#m-game:not([hidden])", timeout=8000)
+    # add_bots_and_start drops us in setup; lock in face-up to reach the game.
+    page.click("#m-choose-grid .m-choose-card:nth-child(1)")
+    page.click("#m-choose-grid .m-choose-card:nth-child(2)")
+    page.click("#m-choose-grid .m-choose-card:nth-child(3)")
+    page.click("#m-lock-in-btn")
+    page.wait_for_selector("#m-game:not([hidden])", timeout=12000)
     # Ensure at least one inbound message has been received (state broadcast).
-    page.wait_for_function("state && state._wsGotMessage === true", timeout=4000)
+    page.wait_for_function("state && state._wsGotMessage === true", timeout=8000)
 
     # Force-close with code 1000 (non-4001). The client should schedule a
     # backoff reopen and surface the "Reconnecting…" banner.
@@ -817,6 +846,18 @@ def section_supporting_visuals(browser: Browser) -> Section:
     return section
 
 
+def _pace_for_rate_limit() -> None:
+    """Wait long enough for the production /api/rooms rate-limit window to reset.
+
+    The server applies 6 requests/minute on `POST /api/rooms`. The smoke test
+    creates rooms across multiple sections; sleeping ~65s between create-heavy
+    groups keeps us comfortably under the limiter. Local dev defaults to
+    `PRINCESS_RATE_LIMIT_DISABLED=1`, so we no-op there.
+    """
+    if BASE.startswith("https://"):
+        time.sleep(65)
+
+
 def write_report(sections: list[Section]) -> None:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
     lines: list[str] = []
@@ -861,9 +902,15 @@ def main() -> int:
             sections.append(section_ua_redirect(browser))
             sections.append(section_deep_link_auto_join(browser))
             sections.append(section_sentinel_reject_soft_fallback(browser))
+            # Pace through the rate-limit window (6/min on /api/rooms) when
+            # hitting an HTTPS environment — production has the limiter on; the
+            # local dev server defaults to PRINCESS_RATE_LIMIT_DISABLED=1.
+            _pace_for_rate_limit()
             sections.append(section_websocket_reconnect(browser))
+            _pace_for_rate_limit()
             sections.append(section_share_room_link(browser))
             sections.append(section_discard_count(browser))
+            _pace_for_rate_limit()
             sections.append(section_scroll_hint(browser))
             sections.append(section_supporting_visuals(browser))
         finally:
