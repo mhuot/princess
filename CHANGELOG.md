@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Inline rename in the desktop lobby now keeps the input open on a server error (e.g., 409 duplicate name). The input is re-focused with its text selected so you can fix the name and resubmit in one keystroke. The mobile rename bottom sheet behaves the same way on error. [inline-rename-error-recovery]
 - The four rate-limited room mutation endpoints (`POST /api/rooms`, `POST /api/rooms/<code>/join`, `POST /api/rooms/<code>/bot`, `POST /api/rooms/<code>/rename`) can now return **HTTP 429** with a `{"detail": "rate limit exceeded: <quota>"}` body when an IP exceeds its per-endpoint quota. [rate-limit-rooms]
 - Per-room names are now unique. `POST /api/rooms/<code>/join` and `POST /api/rooms/<code>/rename` return **409 Conflict** when the chosen name (case-insensitive, whitespace-trimmed) matches an existing seat. The 409 detail quotes the offending name (e.g. `"name 'Mike' is already taken in this room"`). Renaming to your own current name is a no-op (200 with no broadcast). `POST /api/rooms` also trims the host's name. Bot picks already considered all seat names and continue to do so. [unique-room-names]
 - Mobile hand now **wraps to multiple rows** of smaller cards (5 per row at iPhone 14 width) instead of horizontally scrolling. The whole hand is visible at a glance; very large hands push the page scroll. Edge chevrons, gradient fades, and scroll-snap are gone. The **Sort: rank / off** toggle and hand-count badge stay. [mobile-hand-wrap]

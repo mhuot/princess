@@ -371,17 +371,21 @@ async function removeBot(botPid) {
 
 async function renameSelf(newName) {
   const trimmed = (newName || "").trim();
-  if (!trimmed) return;
+  if (!trimmed) return false;
   if (trimmed.length > 20) {
     showError("lobby-error", "Name must be 20 characters or fewer.");
-    return;
+    return false;
   }
   try {
     await postJSON(`/api/rooms/${state.code}/rename`, {
       pid: state.pid,
       new_name: trimmed,
     });
-  } catch (e) { showError("lobby-error", e.message); }
+    return true;
+  } catch (e) {
+    showError("lobby-error", e.message);
+    return false;
+  }
 }
 
 function beginRenameInline(li, nameCell, currentName) {
@@ -397,14 +401,29 @@ function beginRenameInline(li, nameCell, currentName) {
     settled = true;
     input.replaceWith(nameCell);
   };
-  const submit = () => {
+  const submit = async () => {
     if (settled) return;
-    settled = true;
     const value = input.value.trim();
-    input.replaceWith(nameCell);
-    if (value && value !== currentName) renameSelf(value);
+    if (!value || value === currentName) {
+      settled = true;
+      input.replaceWith(nameCell);
+      return;
+    }
+    input.disabled = true;
+    const ok = await renameSelf(value);
+    if (ok) {
+      const err = $("lobby-error");
+      if (err) { err.textContent = ""; err.hidden = true; }
+      settled = true;
+      input.replaceWith(nameCell);
+    } else {
+      input.disabled = false;
+      input.focus();
+      input.select();
+    }
   };
   input.addEventListener("keydown", (e) => {
+    if (input.disabled) return;
     if (e.key === "Enter") { e.preventDefault(); submit(); }
     if (e.key === "Escape") { e.preventDefault(); cancel(); }
   });

@@ -802,7 +802,12 @@ async function submitRename() {
   try {
     await postJSON(`/api/rooms/${state.code}/rename`, { pid: state.pid, new_name: value });
     $("m-rename-sheet").close();
-  } catch (e) { showError(e.message); }
+  } catch (e) {
+    showError(e.message);
+    const inp = $("m-rename-input");
+    inp.focus();
+    inp.select();
+  }
 }
 
 async function copyRoomCode() {
