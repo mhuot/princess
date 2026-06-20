@@ -48,6 +48,13 @@ RATE_LIMIT_CREATE = "6/minute"
 RATE_LIMIT_JOIN = "30/minute"
 RATE_LIMIT_BOT = "20/minute"
 RATE_LIMIT_RENAME = "30/minute"
+RATE_LIMIT_LEADERBOARD = "60/minute"
+
+LEADERBOARD_MAX_LIMIT = 200
+LEADERBOARD_DEFAULT_LIMIT = 50
+LEADERBOARD_DEFAULT_MIN_ROUNDS = 5
+LEADERBOARD_CACHE_TTL = 5.0
+LEADERBOARD_SORTS = ("wins", "winrate", "rounds")
 
 
 def _client_ip(request: Request) -> str:
@@ -190,6 +197,64 @@ async def healthz() -> dict:
 @app.get("/logs")
 async def logs_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "logs.html")
+
+
+@app.get("/leaderboard")
+async def leaderboard_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "leaderboard.html")
+
+
+class _LeaderboardCache:
+    """Tiny in-process TTL cache keyed by (limit, sort, min_rounds)."""
+
+    def __init__(self, ttl: float) -> None:
+        self._ttl = ttl
+        self._store: dict[tuple[int, str, int], tuple[float, list[dict]]] = {}
+
+    def get(self, key: tuple[int, str, int]) -> list[dict] | None:
+        hit = self._store.get(key)
+        if hit is None:
+            return None
+        cached_at, value = hit
+        if time.monotonic() - cached_at > self._ttl:
+            self._store.pop(key, None)
+            return None
+        return value
+
+    def put(self, key: tuple[int, str, int], value: list[dict]) -> None:
+        self._store[key] = (time.monotonic(), value)
+
+    def clear(self) -> None:
+        self._store.clear()
+
+
+_LEADERBOARD_CACHE = _LeaderboardCache(LEADERBOARD_CACHE_TTL)
+
+
+@app.get("/api/leaderboard")
+@limiter.limit(RATE_LIMIT_LEADERBOARD)
+async def get_leaderboard(
+    request: Request,
+    limit: int = LEADERBOARD_DEFAULT_LIMIT,
+    sort: str = "wins",
+    min_rounds: int = LEADERBOARD_DEFAULT_MIN_ROUNDS,
+) -> dict:
+    del request  # used by slowapi for key extraction
+    if limit < 1 or limit > LEADERBOARD_MAX_LIMIT:
+        raise HTTPException(400, f"limit must be between 1 and {LEADERBOARD_MAX_LIMIT}")
+    if sort not in LEADERBOARD_SORTS:
+        raise HTTPException(400, f"sort must be one of {', '.join(LEADERBOARD_SORTS)}")
+    if min_rounds < 0:
+        raise HTTPException(400, "min_rounds must be >= 0")
+    cache_min_rounds = min_rounds if sort == "winrate" else 0
+    key = (limit, sort, cache_min_rounds)
+    cached = _LEADERBOARD_CACHE.get(key)
+    if cached is None:
+        entries = REGISTRY.read_leaderboard(limit=limit, sort=sort, min_rounds=min_rounds)
+        _LEADERBOARD_CACHE.put(key, entries)
+    else:
+        entries = cached
+    return {"entries": entries, "generated_ts": time.time()}
 
 
 @app.get("/api/logs")

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Hall of Princesses · Princess</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+    <script src="/static/leaderboard.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
+    <header>
+      <h1>👑 Hall of Princesses</h1>
+      <p class="tagline">Every Princess win and last-place finish, persistent across all rooms.</p>
+    </header>
+    <main id="main">
+      <section id="leaderboard-section" aria-labelledby="leaderboard-heading">
+        <h2 id="leaderboard-heading" class="visually-hidden">Top players</h2>
+        <div id="leaderboard-toolbar" class="lb-toolbar" role="group" aria-label="Sort">
+          <span class="lb-toolbar-label">Sort by:</span>
+          <button type="button" class="lb-sort-btn" data-sort="wins" aria-pressed="true">Princess wins</button>
+          <button type="button" class="lb-sort-btn" data-sort="winrate" aria-pressed="false">Win rate (≥5 rounds)</button>
+          <button type="button" class="lb-sort-btn" data-sort="rounds" aria-pressed="false">Rounds played</button>
+        </div>
+        <div id="lb-status" class="muted" aria-live="polite">Loading…</div>
+        <div id="lb-table-wrap">
+          <table id="lb-table" hidden>
+            <thead>
+              <tr>
+                <th scope="col" class="lb-rank">Rank</th>
+                <th scope="col" class="lb-player">Player</th>
+                <th scope="col" class="lb-num">Princess wins</th>
+                <th scope="col" class="lb-num">Last places</th>
+                <th scope="col" class="lb-num">Rounds</th>
+                <th scope="col" class="lb-num">Win rate</th>
+              </tr>
+            </thead>
+            <tbody id="lb-body"></tbody>
+          </table>
+        </div>
+        <div id="lb-empty" hidden>
+          <p>No games finished yet. <a href="/">Start a round</a> and your wins will show up here.</p>
+        </div>
+        <div id="lb-error" role="alert" class="error-banner" hidden>
+          <p>Couldn't load the leaderboard. <button type="button" id="lb-retry">Retry</button></p>
+        </div>
+      </section>
+    </main>
+    <footer>
+      <p class="muted">
+        Names are user-typed; this is a casual board, not a ranking system.
+        Bots are excluded.
+        · <a href="/">Back to the game</a>
+        · <a href="/m">Mobile site</a>
+      </p>
+    </footer>
+  </body>
+</html>

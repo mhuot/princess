@@ -1025,3 +1025,108 @@ button:disabled {
 .session-record[hidden] {
   display: none !important;
 }
+
+/* --- Hall of Princesses page (see openspec change `global-leaderboard`) -- */
+
+.lb-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 1rem 0;
+}
+
+.lb-toolbar-label {
+  color: var(--ink-dim);
+  font-weight: 600;
+}
+
+.lb-sort-btn {
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--surface-2);
+  padding: 0.5rem 0.9rem;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.lb-sort-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.lb-sort-btn[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent-strong);
+  font-weight: 600;
+}
+
+#lb-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.5rem;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+#lb-table th,
+#lb-table td {
+  padding: 0.55rem 0.7rem;
+  text-align: left;
+  border-bottom: 1px solid var(--surface-2);
+}
+
+#lb-table th {
+  background: var(--surface-2);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+#lb-table td.lb-rank,
+#lb-table th.lb-rank {
+  width: 4ch;
+  text-align: right;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+#lb-table td.lb-num,
+#lb-table th.lb-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+#lb-table tbody tr:nth-child(odd) td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+#lb-empty {
+  padding: 1.5rem;
+  background: var(--surface);
+  border-radius: 6px;
+  text-align: center;
+  color: var(--ink);
+}
+
+#lb-empty a {
+  color: var(--accent);
+}
+
+#lb-error {
+  margin-top: 1rem;
+}
+
+#lb-status {
+  margin: 0.5rem 0;
+}
+
+@media (max-width: 600px) {
+  #lb-table th,
+  #lb-table td {
+    padding: 0.45rem 0.4rem;
+    font-size: 0.9rem;
+  }
+}

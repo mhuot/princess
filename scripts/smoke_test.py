@@ -846,6 +846,60 @@ def section_supporting_visuals(browser: Browser) -> Section:
     return section
 
 
+def section_hall_of_princesses(browser: Browser) -> Section:
+    """Verify the desktop footer link and the mobile lobby link both reach the
+    Hall of Princesses page and that the page renders (table OR empty state)."""
+    section = Section("hall-of-princesses")
+
+    desk_ctx = make_desktop_context(browser)
+    desk_page = desk_ctx.new_page()
+    desk_page.goto(f"{BASE}/")
+    desk_page.wait_for_selector("#lobby", timeout=8000)
+    footer_link = desk_page.locator("footer a[href='/leaderboard']")
+    section.checks.append(CheckResult(
+        "Desktop footer has Hall of Princesses link",
+        passed=footer_link.count() == 1,
+        notes=f"matching anchors = {footer_link.count()}",
+    ))
+    desk_page.click("footer a[href='/leaderboard']")
+    desk_page.wait_for_selector("#leaderboard-section", timeout=8000)
+    desk_page.wait_for_function(
+        "() => !document.getElementById('lb-status').textContent.includes('Loading')",
+        timeout=8000,
+    )
+    table_visible = desk_page.locator("#lb-table:not([hidden])").count()
+    empty_visible = desk_page.locator("#lb-empty:not([hidden])").count()
+    section.checks.append(CheckResult(
+        "Leaderboard page rendered (table OR empty state)",
+        passed=(table_visible + empty_visible) == 1,
+        notes=f"table_visible={table_visible} empty_visible={empty_visible}",
+        screenshot=shoot(desk_page, "leaderboard-desktop"),
+    ))
+    desk_ctx.close()
+
+    mob_ctx = make_mobile_context(browser)
+    mob_page = mob_ctx.new_page()
+    mob_page.goto(f"{BASE}/m")
+    mob_page.wait_for_selector("#m-lobby", timeout=8000)
+    mob_link = mob_page.locator(".m-switch-row a.m-hall-link[href='/leaderboard']")
+    section.checks.append(CheckResult(
+        "Mobile lobby has Hall of Princesses link",
+        passed=mob_link.count() == 1,
+        notes=f"matching anchors = {mob_link.count()}",
+    ))
+    if mob_link.count() == 1:
+        box = mob_link.bounding_box()
+        size_ok = bool(box and box["height"] >= 44 and box["width"] >= 44)
+        section.checks.append(CheckResult(
+            "Mobile link meets 44 px tap target",
+            passed=size_ok,
+            notes=f"box={box}",
+        ))
+    mob_ctx.close()
+
+    return section
+
+
 def _pace_for_rate_limit() -> None:
     """Wait long enough for the production /api/rooms rate-limit window to reset.
 
@@ -913,6 +967,7 @@ def main() -> int:
             _pace_for_rate_limit()
             sections.append(section_scroll_hint(browser))
             sections.append(section_supporting_visuals(browser))
+            sections.append(section_hall_of_princesses(browser))
         finally:
             browser.close()
     write_report(sections)

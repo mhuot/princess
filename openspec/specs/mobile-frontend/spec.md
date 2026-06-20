@@ -1,9 +1,7 @@
 ## Purpose
 
 The `mobile-frontend` capability is Princess's phone-optimized browser UI, served at `/m` (and `/m/{code}` for direct-join links) parallel to the desktop `web-frontend` at `/`. It is a complete client that talks to the same REST endpoints and WebSocket protocol as the desktop UI, but lays the game out for a portrait-oriented touch viewport: a fan-out hand arc, a sticky bottom action bar with WCAG-sized tap targets, a 2×3 setup grid in place of the desktop's fan-out setup, a bottom-sheet quit modal, a `?`-icon rules sheet in place of the desktop legend, and a full-screen end-of-round winner panel. The mobile UI deliberately omits the House rules config controls, the bot-removal control, and the `/logs` footer link — those stay desktop-only.
-
 ## Requirements
-
 ### Requirement: Mobile route at /m
 
 The server SHALL serve `static/mobile.html` at `GET /m`. It SHALL also serve the same file at `GET /m/{code}` so a room link of the form `<host>/m/AB12` opens the mobile UI with the room code prefilled into the join input.
@@ -198,6 +196,7 @@ Badges SHALL use the same accent color family as the wild `★` glyph. Badges SH
 
 - **WHEN** an opponent's scoreboard entry has `princess_wins == 0` and `last_places == 0`
 - **THEN** the chip renders the bare name with no `· Princess` or `· Last` suffix
+
 ### Requirement: Mobile lobby
 
 The mobile lobby SHALL provide: name input, **Create new room** button, room-code input, **Join room** button. Once in a room, the lobby SHALL list seats with name + host/bot/offline tags. The caller's own seat SHALL be renameable via a bottom-sheet rename dialog (`#m-rename-sheet`) reachable from a Rename affordance accessible from the lobby and the game-view top bar.
@@ -302,6 +301,7 @@ The **Session record line** SHALL be sourced from the top-level `scoreboard` fie
 
 - **WHEN** the broadcast `scoreboard[user_pid]["rounds_played"] == 0` (defensive case)
 - **THEN** the Session record line is absent from the mobile winner panel
+
 ### Requirement: Mobile quit modal (bottom sheet)
 
 The mobile UI SHALL present the Quit modal as a **bottom sheet** that slides up from the screen bottom, rather than a centered `<dialog>`. The options offered are the same as the desktop UI:
@@ -631,3 +631,23 @@ The banner SHALL meet WCAG AAA contrast (≥ 7:1 normal-text contrast) and SHALL
 
 - **WHEN** `#m-conn-banner` enters the `reconnecting` or `lost` state
 - **THEN** the element carries `role="status"` and `aria-live="polite"` so screen readers announce the state change without interrupting the user
+
+### Requirement: Mobile lobby links to Hall of Princesses
+
+The mobile lobby (`/m`) SHALL include a "Hall of Princesses" link in the same switch row that holds the "View desktop site" affordance, pointing to `/leaderboard`. The link SHALL meet the 44 px × 44 px tap-target floor used by the rest of the mobile UI and render at WCAG AAA contrast.
+
+#### Scenario: Link present in mobile lobby
+
+- **WHEN** a user opens `/m` and views the lobby switch row
+- **THEN** an anchor labeled "Hall of Princesses" pointing to `/leaderboard` is rendered
+
+#### Scenario: Tap target meets minimum size
+
+- **WHEN** the link is measured
+- **THEN** its hit box is at least 44 px × 44 px
+
+#### Scenario: Navigation works
+
+- **WHEN** the user taps the link
+- **THEN** the browser navigates to `/leaderboard`
+

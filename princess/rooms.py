@@ -53,8 +53,31 @@ CREATE_TABLE_SQL = (
     "updated_ts REAL NOT NULL"
     ")"
 )
+CREATE_LEADERBOARD_SQL = (
+    "CREATE TABLE IF NOT EXISTS leaderboard ("
+    "name_key TEXT PRIMARY KEY, "
+    "display_name TEXT NOT NULL, "
+    "princess_wins INTEGER NOT NULL DEFAULT 0, "
+    "last_places INTEGER NOT NULL DEFAULT 0, "
+    "rounds_played INTEGER NOT NULL DEFAULT 0, "
+    "updated_ts REAL NOT NULL"
+    ")"
+)
+CREATE_LEADERBOARD_INDEX_SQL = (
+    "CREATE INDEX IF NOT EXISTS idx_leaderboard_wins ON leaderboard (princess_wins DESC)"
+)
 
 _persist_log = logging.getLogger("princess.persistence")
+
+
+def _normalize_name(display: str) -> str:
+    """Lowercase, strip, and collapse internal whitespace runs to one space.
+
+    Used as the ``leaderboard.name_key``: "Alice", "ALICE", and "  alice  "
+    all map to ``"alice"`` so the same human's wins aggregate even when their
+    in-game casing or whitespace habits vary.
+    """
+    return " ".join(display.split()).lower()
 
 
 def _new_code() -> str:
@@ -112,19 +135,26 @@ class Room:
         """Remove ``pid`` from the scoreboard; no-op if absent."""
         self.scoreboard.pop(pid, None)
 
-    def _bump_scoreboard_if_needed(self) -> None:
+    def _bump_scoreboard_if_needed(self) -> tuple[list[str], dict[str, str]] | None:
         """Increment counters when the current `Game` has just finished.
 
         Idempotent: a re-broadcast of the same finished `Game` does not double
         count thanks to the `_scoreboard_counted_for_game` marker, which is
         cleared on every fresh `start_game()`.
+
+        Returns ``(human_finished_order, display_by_pid)`` on the bump that
+        flips the marker (so the caller can forward the same event to the
+        global leaderboard), or ``None`` on subsequent calls and on no-op
+        invocations (no game, game not over, or already counted).
         """
         game = self.game
         if game is None or not game.game_over:
-            return
+            return None
         if self._scoreboard_counted_for_game == id(game):
-            return
+            return None
         finished_order = list(game.finished_order)
+        human_pids: set[str] = {s.pid for s in self.seats if not s.is_bot}
+        display_by_pid: dict[str, str] = {s.pid: s.name for s in self.seats if not s.is_bot}
         if finished_order:
             winner_pid = finished_order[0]
             last_pid = finished_order[-1]
@@ -136,6 +166,8 @@ class Room:
                 if pid in self.scoreboard:
                     self.scoreboard[pid]["rounds_played"] += 1
         self._scoreboard_counted_for_game = id(game)
+        human_finished = [pid for pid in finished_order if pid in human_pids]
+        return human_finished, display_by_pid
 
     def reset_scoreboard(self) -> None:
         """Zero every existing entry without dropping any (used by `/abort`)."""
@@ -240,7 +272,10 @@ class Room:
     async def broadcast_state(self) -> None:
         # Game-over bumps fire at the room layer (engine stays pure). The
         # bump is idempotent so re-broadcasts on reconnect do not double-count.
-        self._bump_scoreboard_if_needed()
+        global_bump = self._bump_scoreboard_if_needed()
+        if global_bump is not None:
+            human_finished, display_by_pid = global_bump
+            await REGISTRY.bump_global_leaderboard(human_finished, display_by_pid)
         if self.game is None:
             await self.broadcast_lobby()
             return
@@ -431,6 +466,8 @@ class RoomRegistry:
         # WAL keeps readers unblocked by writers. ``journal_mode`` returns a row.
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute(CREATE_TABLE_SQL)
+        conn.execute(CREATE_LEADERBOARD_SQL)
+        conn.execute(CREATE_LEADERBOARD_INDEX_SQL)
         return conn
 
     def attach_db(self, path: str) -> None:
@@ -479,6 +516,135 @@ class RoomRegistry:
     def _forget_sync(self, code: str) -> None:
         assert self._conn is not None
         self._conn.execute("DELETE FROM rooms WHERE code = ?", (code,))
+
+    # ---- leaderboard -----------------------------------------------------
+
+    async def bump_global_leaderboard(
+        self,
+        human_finished_order: list[str],
+        display_by_pid: dict[str, str],
+    ) -> None:
+        """Upsert global leaderboard counters for a finished game.
+
+        ``human_finished_order`` SHALL contain only human pids; the room layer
+        filters bots before calling. The first pid receives a Princess win,
+        the last pid a last-place finish, and every pid in the list counts a
+        round played. No-op when the registry has no SQLite connection.
+        Errors are logged but never raised — a write failure must not break
+        the WS broadcast that triggered it.
+        """
+        if self._conn is None:
+            return
+        if not human_finished_order:
+            return
+        winner_pid = human_finished_order[0]
+        last_pid = human_finished_order[-1] if len(human_finished_order) > 1 else None
+        upserts: list[tuple[str, str, int, int, int]] = []
+        for pid in human_finished_order:
+            display = display_by_pid.get(pid)
+            if display is None:
+                continue
+            win = 1 if pid == winner_pid else 0
+            last = 1 if pid == last_pid else 0
+            display_clean = " ".join(display.split())
+            if not display_clean:
+                continue
+            upserts.append((_normalize_name(display), display_clean, win, last, 1))
+        if not upserts:
+            return
+        try:
+            await asyncio.to_thread(self._bump_global_leaderboard_sync, upserts)
+        except sqlite3.Error:
+            _persist_log.exception(
+                "sqlite leaderboard upsert failed (size=%d); in-memory state unchanged",
+                len(upserts),
+            )
+
+    def _bump_global_leaderboard_sync(
+        self,
+        upserts: list[tuple[str, str, int, int, int]],
+    ) -> None:
+        assert self._conn is not None
+        now = time.time()
+        for name_key, display, win, last, round_count in upserts:
+            self._conn.execute(
+                "INSERT INTO leaderboard ("
+                "  name_key, display_name, princess_wins, last_places, "
+                "  rounds_played, updated_ts"
+                ") VALUES (?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(name_key) DO UPDATE SET "
+                "  display_name = excluded.display_name, "
+                "  princess_wins = princess_wins + excluded.princess_wins, "
+                "  last_places = last_places + excluded.last_places, "
+                "  rounds_played = rounds_played + excluded.rounds_played, "
+                "  updated_ts = excluded.updated_ts",
+                (name_key, display, win, last, round_count, now),
+            )
+
+    def read_leaderboard(
+        self,
+        limit: int,
+        sort: str,
+        min_rounds: int,
+    ) -> list[dict]:
+        """Return up to ``limit`` rows ordered by ``sort``.
+
+        ``sort`` is one of ``"wins"`` (default; ``princess_wins DESC``),
+        ``"rounds"`` (``rounds_played DESC``), or ``"winrate"`` (computed
+        ratio, filtered to rows with ``rounds_played >= min_rounds``). On any
+        SQLite error the call returns an empty list — a read failure on the
+        leaderboard table must not break the page.
+        """
+        if self._conn is None:
+            return []
+        try:
+            return self._read_leaderboard_sync(limit, sort, min_rounds)
+        except sqlite3.Error:
+            _persist_log.exception("sqlite leaderboard read failed sort=%s", sort)
+            return []
+
+    def _read_leaderboard_sync(
+        self,
+        limit: int,
+        sort: str,
+        min_rounds: int,
+    ) -> list[dict]:
+        assert self._conn is not None
+        if sort == "rounds":
+            sql = (
+                "SELECT display_name, princess_wins, last_places, rounds_played "
+                "FROM leaderboard ORDER BY rounds_played DESC, princess_wins DESC LIMIT ?"
+            )
+            params: tuple = (limit,)
+        elif sort == "winrate":
+            sql = (
+                "SELECT display_name, princess_wins, last_places, rounds_played "
+                "FROM leaderboard WHERE rounds_played >= ? "
+                "ORDER BY (CAST(princess_wins AS REAL) / rounds_played) DESC, "
+                "         princess_wins DESC LIMIT ?"
+            )
+            params = (min_rounds, limit)
+        else:
+            sql = (
+                "SELECT display_name, princess_wins, last_places, rounds_played "
+                "FROM leaderboard ORDER BY princess_wins DESC, rounds_played DESC LIMIT ?"
+            )
+            params = (limit,)
+        rows = list(self._conn.execute(sql, params))
+        results: list[dict] = []
+        for display_name, princess_wins, last_places, rounds_played in rows:
+            played = max(int(rounds_played), 1)
+            win_rate = round(int(princess_wins) / played, 4)
+            results.append(
+                {
+                    "display_name": str(display_name),
+                    "princess_wins": int(princess_wins),
+                    "last_places": int(last_places),
+                    "rounds_played": int(rounds_played),
+                    "win_rate": win_rate,
+                }
+            )
+        return results
 
     def restore_all(self) -> int:
         """Load every persisted room into ``self._rooms``.

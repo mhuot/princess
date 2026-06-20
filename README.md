@@ -169,6 +169,44 @@ services:
       - /var/log/princess:/var/log/princess
 ```
 
+### Hall of Princesses (global leaderboard)
+
+A persistent leaderboard at `/leaderboard` aggregates Princess wins,
+last-place finishes, and rounds played across **every room and every server
+restart**. It lives in the same SQLite database as `persistent-rooms`
+(`PRINCESS_DB_PATH`, default `./princess.db`) and creates its `leaderboard`
+table idempotently at startup.
+
+Rows are keyed by a normalized name (lowercase, whitespace-collapsed) so
+"Alice", "ALICE", and "  alice  " aggregate into one entry. **Bots are
+excluded** — only seats with `is_bot = False` contribute to counters.
+
+**`GET /api/leaderboard`** accepts three optional query parameters:
+
+| Parameter | Default | Range / values | Notes |
+| --- | --- | --- | --- |
+| `limit` | `50` | `1`–`200` | Max rows returned. |
+| `sort` | `wins` | `wins` \| `winrate` \| `rounds` | Sort key, descending. |
+| `min_rounds` | `5` | `>=0` | Win-rate floor; ignored unless `sort=winrate`. |
+
+Responses are cached in-process for 5 seconds per `(limit, sort, min_rounds)`
+tuple and rate-limited to 60 requests per minute per IP.
+
+The page itself is a static HTML view linked from the desktop footer and the
+mobile lobby switch row. There is no admin UI for clearing — operators reset
+counters with `sqlite3 princess.db "DELETE FROM leaderboard"`. The schema:
+
+```
+leaderboard(
+    name_key       TEXT PRIMARY KEY,
+    display_name   TEXT NOT NULL,
+    princess_wins  INTEGER NOT NULL DEFAULT 0,
+    last_places    INTEGER NOT NULL DEFAULT 0,
+    rounds_played  INTEGER NOT NULL DEFAULT 0,
+    updated_ts     REAL NOT NULL
+)
+```
+
 ### Persistent rooms
 
 Rooms (seats, host, config, in-progress games, and the session scoreboard)

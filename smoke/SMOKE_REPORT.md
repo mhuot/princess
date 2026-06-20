@@ -1,32 +1,32 @@
 # Smoke test report
 
-_Generated 2026-06-09 01:43:12 UTC_  
+_Generated 2026-06-19 23:54:56 UTC_  
 _Tool: Playwright (Chromium headless)_  
-_Base URL: https://princess.geekpark.com_
+_Base URL: http://127.0.0.1:8000_
 
-**Result: 39/39 checks passed.**
+**Result: 43/43 checks passed.**
 
 ## mobile-ua-redirect (9/9)
 
 ### ✅ Mobile UA hitting / lands on /m
 
-> url='https://princess.geekpark.com/m' title='Princess — mobile'
+> url='http://127.0.0.1:8000/m' title='Princess — mobile'
 
 ![Mobile UA hitting / lands on /m](screens/redirect-mobile-to-m.png)
 
 ### ✅ Mobile UA hitting /room/AB12 lands on /m/AB12
 
-> url='https://princess.geekpark.com/m/AB12'
+> url='http://127.0.0.1:8000/m/AB12'
 
 ### ✅ Desktop UA hitting / stays on /
 
-> url='https://princess.geekpark.com/' title='Princess Card Game'
+> url='http://127.0.0.1:8000/' title='Princess Card Game'
 
 ![Desktop UA hitting / stays on /](screens/redirect-desktop-stays.png)
 
 ### ✅ ?desktop=1 keeps mobile UA on the desktop UI
 
-> url='https://princess.geekpark.com/?desktop=1' title='Princess Card Game'
+> url='http://127.0.0.1:8000/?desktop=1' title='Princess Card Game'
 
 ![?desktop=1 keeps mobile UA on the desktop UI](screens/redirect-desktop-query-override.png)
 
@@ -38,11 +38,11 @@ _Base URL: https://princess.geekpark.com_
 
 ### ✅ Tapping 'View desktop site' sets cookie + lands on /
 
-> cookie='1' url='https://princess.geekpark.com/' title='Princess Card Game'
+> cookie='1' url='http://127.0.0.1:8000/' title='Princess Card Game'
 
 ### ✅ Cookie keeps mobile UA on / on subsequent visits
 
-> url='https://princess.geekpark.com/' title='Princess Card Game'
+> url='http://127.0.0.1:8000/' title='Princess Card Game'
 
 ### ✅ Desktop footer has 'Mobile site' link
 
@@ -50,13 +50,13 @@ _Base URL: https://princess.geekpark.com_
 
 ### ✅ Tapping 'Mobile site' clears cookie + lands on /m
 
-> cookie_cleared=True url='https://princess.geekpark.com/m' title='Princess — mobile' cookies={}
+> cookie_cleared=True url='http://127.0.0.1:8000/m' title='Princess — mobile' cookies={}
 
 ## deep-link-auto-join (8/8)
 
 ### ✅ Tier 3: focused view appears with no saved name
 
-> focused_visible=True landing_hidden=True btn='Join room 59L1'
+> focused_visible=True landing_hidden=True btn='Join room XIQU'
 
 ![Tier 3: focused view appears with no saved name](screens/auto-join-focused-view.png)
 
@@ -84,7 +84,7 @@ _Base URL: https://princess.geekpark.com_
 
 ### ✅ Session sentinel persisted after join
 
-> sentinel='{"code":"59L1","pid":"YHN57ZRhqNc","name":"Mike"}'
+> sentinel='{"code":"XIQU","pid":"HSmPZm63HP8","name":"Mike"}'
 
 ### ✅ Failure (404) falls back to landing with code prefilled + error
 
@@ -120,7 +120,7 @@ _Base URL: https://princess.geekpark.com_
 
 ### ✅ Desktop lobby shows Share link button
 
-> Room FSEO
+> Room 23JK
 
 ![Desktop lobby shows Share link button](screens/share-desktop-lobby.png)
 
@@ -132,11 +132,11 @@ _Base URL: https://princess.geekpark.com_
 
 ### ✅ Desktop clipboard URL matches /room/<code>
 
-> clipboard='https://princess.geekpark.com/room/FSEO' expected='https://princess.geekpark.com/room/FSEO'
+> clipboard='http://127.0.0.1:8000/room/23JK' expected='http://127.0.0.1:8000/room/23JK'
 
 ### ✅ Mobile lobby shows ↗ share button
 
-> Room M2BS
+> Room VH4S
 
 ![Mobile lobby shows ↗ share button](screens/share-mobile-lobby.png)
 
@@ -152,13 +152,13 @@ _Base URL: https://princess.geekpark.com_
 
 ### ✅ Mobile clipboard URL matches /m/<code>
 
-> clipboard='https://princess.geekpark.com/m/M2BS' expected='https://princess.geekpark.com/m/M2BS'
+> clipboard='http://127.0.0.1:8000/m/VH4S' expected='http://127.0.0.1:8000/m/VH4S'
 
 ## mobile-discard-count (4/4)
 
 ### ✅ Created mobile room
 
-> Room I6D0
+> Room 9D4S
 
 ### ✅ Setup phase visible (Discard count won't render here, but pile-area UI not yet)
 
@@ -168,7 +168,7 @@ _Base URL: https://princess.geekpark.com_
 
 ### ✅ Playing phase shows Deck and Discard stats
 
-> deck='24' discard='1'
+> deck='25' discard='0'
 
 ![Playing phase shows Deck and Discard stats](screens/discard-playing-phase.png)
 
@@ -207,3 +207,23 @@ _Base URL: https://princess.geekpark.com_
 ### ✅ Hand rendered as wrap row
 
 > hand card count=3
+
+## hall-of-princesses (4/4)
+
+### ✅ Desktop footer has Hall of Princesses link
+
+> matching anchors = 1
+
+### ✅ Leaderboard page rendered (table OR empty state)
+
+> table_visible=0 empty_visible=1
+
+![Leaderboard page rendered (table OR empty state)](screens/leaderboard-desktop.png)
+
+### ✅ Mobile lobby has Hall of Princesses link
+
+> matching anchors = 1
+
+### ✅ Mobile link meets 44 px tap target
+
+> box={'x': 114.5, 'y': 424.375, 'width': 160.984375, 'height': 44}
