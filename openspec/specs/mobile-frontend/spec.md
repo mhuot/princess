@@ -632,22 +632,32 @@ The banner SHALL meet WCAG AAA contrast (≥ 7:1 normal-text contrast) and SHALL
 - **WHEN** `#m-conn-banner` enters the `reconnecting` or `lost` state
 - **THEN** the element carries `role="status"` and `aria-live="polite"` so screen readers announce the state change without interrupting the user
 
-### Requirement: Mobile lobby links to Hall of Princesses
+### Requirement: Mobile links to Hall of Princesses
 
-The mobile lobby (`/m`) SHALL include a "Hall of Princesses" link in the same switch row that holds the "View desktop site" affordance, pointing to `/leaderboard`. The link SHALL meet the 44 px × 44 px tap-target floor used by the rest of the mobile UI and render at WCAG AAA contrast.
+The mobile UI SHALL surface a "Hall of Princesses" link pointing to `/leaderboard` from at least two places:
+
+1. The lobby switch row, alongside the "View desktop site" button.
+2. The rules bottom-sheet (`#m-rules-sheet`), which is reachable from both the setup screen and the game screen via the `?` button in their top bars.
+
+Both links SHALL meet the 44 px × 44 px tap-target floor used by the rest of the mobile UI and render at WCAG AAA contrast.
 
 #### Scenario: Link present in mobile lobby
 
 - **WHEN** a user opens `/m` and views the lobby switch row
 - **THEN** an anchor labeled "Hall of Princesses" pointing to `/leaderboard` is rendered
 
+#### Scenario: Link present in rules sheet
+
+- **WHEN** a user opens the rules bottom-sheet from the mobile setup or game screen
+- **THEN** an anchor labeled "Hall of Princesses" pointing to `/leaderboard` is rendered inside the sheet
+
 #### Scenario: Tap target meets minimum size
 
-- **WHEN** the link is measured
+- **WHEN** either link is measured
 - **THEN** its hit box is at least 44 px × 44 px
 
 #### Scenario: Navigation works
 
-- **WHEN** the user taps the link
+- **WHEN** the user taps either link
 - **THEN** the browser navigates to `/leaderboard`
 
