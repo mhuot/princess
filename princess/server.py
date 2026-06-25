@@ -28,7 +28,7 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -37,7 +37,7 @@ from slowapi.errors import RateLimitExceeded
 
 from .bot_names import pick_bot_name
 from .game import GameConfig
-from .logging_config import LOG_BUFFER, room_logger, setup_logging
+from .logging_config import LOG_BUFFER, redact_pid, room_logger, setup_logging
 from .rooms import DEFAULT_DB_PATH, MAX_PLAYERS, MIN_PLAYERS, REGISTRY, Seat, parse_source
 
 ROOM_IDLE_TIMEOUT = float(os.environ.get("ROOM_IDLE_TIMEOUT_SECONDS", "300"))
@@ -124,6 +124,15 @@ app = FastAPI(title="Princess Card Game", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_handler)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+_LOOPBACK_HOSTS = {"127.0.0.1", "::1"}
+
+
+async def require_localhost(request: Request) -> None:
+    """Dependency that restricts access to loopback clients only (fail closed)."""
+    host = request.client.host if request.client else None
+    if host not in _LOOPBACK_HOSTS:
+        raise HTTPException(403, "forbidden")
 
 
 class CreateRoomBody(BaseModel):
@@ -257,13 +266,13 @@ async def get_leaderboard(
     return {"entries": entries, "generated_ts": time.time()}
 
 
-@app.get("/api/logs")
+@app.get("/api/logs", dependencies=[Depends(require_localhost)])
 async def get_logs(since: int = 0, limit: int = 500) -> dict:
     entries, last_id = LOG_BUFFER.snapshot(since=since, limit=limit)
     return {"entries": entries, "last_id": last_id, "capacity": LOG_BUFFER.capacity}
 
 
-@app.get("/api/logs/download")
+@app.get("/api/logs/download", dependencies=[Depends(require_localhost)])
 async def download_logs() -> PlainTextResponse:
     body = LOG_BUFFER.dump_text() or "(log buffer is empty)\n"
     return PlainTextResponse(
@@ -272,7 +281,7 @@ async def download_logs() -> PlainTextResponse:
     )
 
 
-@app.delete("/api/logs")
+@app.delete("/api/logs", dependencies=[Depends(require_localhost)])
 async def clear_logs() -> dict:
     LOG_BUFFER.clear()
     log.info("log buffer cleared by user")
@@ -306,8 +315,8 @@ async def create_room(request: Request, body: CreateRoomBody) -> dict:
     pid = _new_pid()
     # ``REGISTRY.create`` already persists the freshly-created room.
     room = await REGISTRY.create(host_pid=pid, host_name=name)
-    log.info("room created code=%s host=%s pid=%s", room.code, name, pid)
-    room_logger(room.code).info("room opened by host=%s pid=%s", name, pid)
+    log.info("room created code=%s host=%s pid=%s", room.code, name, redact_pid(pid))
+    room_logger(room.code).info("room opened by host=%s pid=%s", name, redact_pid(pid))
     return {"code": room.code, "pid": pid}
 
 
@@ -330,7 +339,9 @@ async def join_room(request: Request, code: str, body: JoinRoomBody) -> dict:
     pid = _new_pid()
     room.seats.append(Seat(pid=pid, name=name))
     room._ensure_scoreboard_entry(pid)  # pylint: disable=protected-access
-    room_logger(room.code).info("seat joined name=%s pid=%s seats=%d", name, pid, len(room.seats))
+    room_logger(room.code).info(
+        "seat joined name=%s pid=%s seats=%d", name, redact_pid(pid), len(room.seats)
+    )
     await room.broadcast_lobby()
     await REGISTRY.persist(room)
     return {"code": room.code, "pid": pid}
@@ -355,7 +366,7 @@ async def add_bot(request: Request, code: str, body: AddBotBody) -> dict:
     room.seats.append(Seat(pid=bot_pid, name=bot_name, is_bot=True))
     room._ensure_scoreboard_entry(bot_pid)  # pylint: disable=protected-access
     room_logger(room.code).info(
-        "bot added name=%r pid=%s seats=%d", bot_name, bot_pid, len(room.seats)
+        "bot added name=%r pid=%s seats=%d", bot_name, redact_pid(bot_pid), len(room.seats)
     )
     await room.broadcast_lobby()
     await REGISTRY.persist(room)
@@ -384,7 +395,7 @@ async def remove_bot(code: str, body: RemoveBotBody) -> dict:
     room.seats.remove(seat)
     room._drop_scoreboard_entry(seat.pid)  # pylint: disable=protected-access
     room_logger(room.code).info(
-        "bot removed name=%r pid=%s remaining=%d", seat.name, seat.pid, len(room.seats)
+        "bot removed name=%r pid=%s remaining=%d", seat.name, redact_pid(seat.pid), len(room.seats)
     )
     await room.broadcast_lobby()
     await REGISTRY.persist(room)
@@ -420,7 +431,9 @@ async def rename_seat(request: Request, code: str, body: RenameBody) -> dict:
             room.game.player(body.pid).name = new_name
         except KeyError:
             pass
-    room_logger(room.code).info("seat renamed pid=%s old=%r new=%r", body.pid, old_name, new_name)
+    room_logger(room.code).info(
+        "seat renamed pid=%s old=%r new=%r", redact_pid(body.pid), old_name, new_name
+    )
     if room.game is None:
         await room.broadcast_lobby()
     else:
@@ -519,11 +532,16 @@ async def leave_room(code: str, body: LeaveBody) -> dict:
         if room.game.phase == "setup":
             room._auto_pick_bot_face_up(seat.pid)  # pylint: disable=protected-access
         converted = True
-        rlog.info("seat converted to bot name=%s pid=%s", seat.name, seat.pid)
+        rlog.info("seat converted to bot name=%s pid=%s", seat.name, redact_pid(seat.pid))
     else:
         room.seats.remove(seat)
         room._drop_scoreboard_entry(seat.pid)  # pylint: disable=protected-access
-        rlog.info("seat left name=%s pid=%s remaining=%d", seat.name, seat.pid, len(room.seats))
+        rlog.info(
+            "seat left name=%s pid=%s remaining=%d",
+            seat.name,
+            redact_pid(seat.pid),
+            len(room.seats),
+        )
     if room.game is None:
         await room.broadcast_lobby()
     else:
@@ -597,7 +615,7 @@ async def gameplay_socket(websocket: WebSocket, code: str, pid: str) -> None:
     seat.socket = websocket
     room.touch()
     rlog = room_logger(code)
-    rlog.info("ws connected pid=%s name=%s", pid, seat.name)
+    rlog.info("ws connected pid=%s name=%s", redact_pid(pid), seat.name)
     try:
         # Initial sync.
         if room.game is None:
@@ -613,9 +631,9 @@ async def gameplay_socket(websocket: WebSocket, code: str, pid: str) -> None:
             msg = await websocket.receive_json()
             await _handle_message(room, seat, msg)
     except WebSocketDisconnect:
-        rlog.info("ws disconnected pid=%s name=%s", pid, seat.name)
+        rlog.info("ws disconnected pid=%s name=%s", redact_pid(pid), seat.name)
     except Exception:  # pylint: disable=broad-exception-caught
-        rlog.exception("ws handler crashed pid=%s name=%s", pid, seat.name)
+        rlog.exception("ws handler crashed pid=%s name=%s", redact_pid(pid), seat.name)
     finally:
         seat.socket = None
         if room.game is None:
@@ -626,7 +644,7 @@ async def _handle_message(room, seat: Seat, msg: dict) -> None:
     kind = msg.get("type")
     rlog = room_logger(room.code)
     if room.game is None:
-        rlog.warning("message before game start kind=%s pid=%s", kind, seat.pid)
+        rlog.warning("message before game start kind=%s pid=%s", kind, redact_pid(seat.pid))
         await seat.socket.send_json({"type": "error", "message": "game not started"})
         return
     room.touch()
@@ -636,25 +654,29 @@ async def _handle_message(room, seat: Seat, msg: dict) -> None:
             indices = [int(i) for i in msg["indices"]]
             rlog.info(
                 "ws play pid=%s name=%s source=%s indices=%s",
-                seat.pid,
+                redact_pid(seat.pid),
                 seat.name,
                 source.value,
                 indices,
             )
             result = room.game.play(seat.pid, source, indices)
         elif kind == "pickup":
-            rlog.info("ws pickup pid=%s name=%s", seat.pid, seat.name)
+            rlog.info("ws pickup pid=%s name=%s", redact_pid(seat.pid), seat.name)
             result = room.game.pickup(seat.pid)
         elif kind == "set_face_up":
             indices = [int(i) for i in msg["indices"]]
-            rlog.info("ws set_face_up pid=%s name=%s indices=%s", seat.pid, seat.name, indices)
+            rlog.info(
+                "ws set_face_up pid=%s name=%s indices=%s", redact_pid(seat.pid), seat.name, indices
+            )
             result = room.game.set_face_up(seat.pid, indices)
         else:
-            rlog.warning("unknown message kind=%s pid=%s", kind, seat.pid)
+            rlog.warning("unknown message kind=%s pid=%s", kind, redact_pid(seat.pid))
             await seat.socket.send_json({"type": "error", "message": f"unknown type: {kind}"})
             return
         if not result.ok:
-            rlog.warning("action rejected pid=%s kind=%s error=%s", seat.pid, kind, result.error)
+            rlog.warning(
+                "action rejected pid=%s kind=%s error=%s", redact_pid(seat.pid), kind, result.error
+            )
             await seat.socket.send_json({"type": "error", "message": result.error})
         else:
             rlog.info(

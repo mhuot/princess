@@ -56,7 +56,7 @@ The reverse rank is tunable per room from the lobby's **House rules** panel: pic
 - **Quit modal with options.** Take over with a bot (round continues without you), end the round (winner banner with current standings), or abort to lobby.
 - **Pre-game swap phase.** Dealt 3 face-down + 6 to choose from; pick 3 to go face-up, 3 stay in hand. Bots auto-pick their highest.
 - **WCAG AAA color palette.** ≥7:1 contrast, skip link, keyboard-visible focus rings, `prefers-reduced-motion` respect.
-- **In-browser log viewer at `/logs`.** Live-tail with auto-refresh, download as text, clear button. No filesystem footprint — bounded 2000-entry ring buffer.
+- **In-browser log viewer at `/logs`.** Live-tail with auto-refresh, download as text, clear button. No filesystem footprint — bounded 2000-entry ring buffer. The log API (`/api/logs*`) is restricted to loopback clients only; session tokens are redacted before they ever reach the buffer.
 - **Tested.** 105 unit + integration tests covering the engine, AI, server, log buffer, room lifecycle, and the WebSocket round-trip.
 - **Spec-driven.** Every behavior is documented in [`openspec/specs/`](openspec/specs/) — game-engine, ai-bot, room-server, web-frontend, logging, repository-meta.
 

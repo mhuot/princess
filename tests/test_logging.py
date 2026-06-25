@@ -11,17 +11,32 @@ You may obtain a copy of the License at
     http://www.apache.org/licenses/LICENSE-2.0
 """
 
+import asyncio
 import logging
+from unittest.mock import MagicMock
 
+from fastapi import HTTPException as FastAPIHTTPException
 from fastapi.testclient import TestClient
 
 from princess.logging_config import (
     LOG_BUFFER,
     RingBufferHandler,
+    redact_pid,
     room_logger,
     setup_logging,
 )
-from princess.server import app
+from princess.server import app, require_localhost
+
+
+def _loopback_client() -> TestClient:
+    """TestClient that bypasses the localhost guard (simulates operator access)."""
+    app.dependency_overrides[require_localhost] = lambda: None
+    client = TestClient(app)
+    return client
+
+
+def _reset_overrides() -> None:
+    app.dependency_overrides.clear()
 
 
 def _record(
@@ -111,58 +126,171 @@ def test_api_logs_returns_recent_entries():
     LOG_BUFFER.clear()
     logging.getLogger("princess.test").info("princess-test-first")
     logging.getLogger("princess.test").info("princess-test-second")
-    client = TestClient(app)
-    res = client.get("/api/logs")
-    assert res.status_code == 200
-    body = res.json()
-    assert body["capacity"] == LOG_BUFFER.capacity
-    lines = [e["line"] for e in body["entries"]]
-    assert any("princess-test-first" in line for line in lines)
-    assert any("princess-test-second" in line for line in lines)
+    client = _loopback_client()
+    try:
+        res = client.get("/api/logs")
+        assert res.status_code == 200
+        body = res.json()
+        assert body["capacity"] == LOG_BUFFER.capacity
+        lines = [e["line"] for e in body["entries"]]
+        assert any("princess-test-first" in line for line in lines)
+        assert any("princess-test-second" in line for line in lines)
+    finally:
+        _reset_overrides()
 
 
 def test_api_logs_since_cursor_returns_only_new():
     setup_logging()
     LOG_BUFFER.clear()
     logging.getLogger("princess.test").info("alpha")
-    client = TestClient(app)
-    first = client.get("/api/logs").json()
-    cursor = first["last_id"]
-    logging.getLogger("princess.test").info("beta")
-    second = client.get(f"/api/logs?since={cursor}").json()
-    assert all(e["id"] > cursor for e in second["entries"])
-    assert any("beta" in e["line"] for e in second["entries"])
+    client = _loopback_client()
+    try:
+        first = client.get("/api/logs").json()
+        cursor = first["last_id"]
+        logging.getLogger("princess.test").info("beta")
+        second = client.get(f"/api/logs?since={cursor}").json()
+        assert all(e["id"] > cursor for e in second["entries"])
+        assert any("beta" in e["line"] for e in second["entries"])
+    finally:
+        _reset_overrides()
 
 
 def test_api_logs_download_is_attachment():
     setup_logging()
     LOG_BUFFER.clear()
     logging.getLogger("princess.test").info("download-me")
-    client = TestClient(app)
-    res = client.get("/api/logs/download")
-    assert res.status_code == 200
-    assert res.headers["content-type"].startswith("text/plain")
-    assert 'attachment; filename="princess.log"' in res.headers["content-disposition"]
-    assert "download-me" in res.text
+    client = _loopback_client()
+    try:
+        res = client.get("/api/logs/download")
+        assert res.status_code == 200
+        assert res.headers["content-type"].startswith("text/plain")
+        assert 'attachment; filename="princess.log"' in res.headers["content-disposition"]
+        assert "download-me" in res.text
+    finally:
+        _reset_overrides()
 
 
 def test_api_logs_download_empty_buffer_returns_placeholder():
     setup_logging()
     LOG_BUFFER.clear()
-    client = TestClient(app)
-    res = client.get("/api/logs/download")
-    assert res.status_code == 200
-    assert res.text.strip() != ""  # placeholder, not empty
+    client = _loopback_client()
+    try:
+        res = client.get("/api/logs/download")
+        assert res.status_code == 200
+        assert res.text.strip() != ""  # placeholder, not empty
+    finally:
+        _reset_overrides()
 
 
 def test_api_logs_delete_clears_buffer_and_logs_clear():
     setup_logging()
     LOG_BUFFER.clear()
     logging.getLogger("princess.test").info("about-to-be-cleared")
+    client = _loopback_client()
+    try:
+        delete_res = client.delete("/api/logs")
+        assert delete_res.status_code == 200
+        after_lines = [e["line"] for e in LOG_BUFFER.snapshot()[0]]
+        # After clear: pre-clear entries are gone; the clear acknowledgement line is in.
+        assert not any("about-to-be-cleared" in ln for ln in after_lines)
+        assert any("cleared" in ln.lower() for ln in after_lines)
+    finally:
+        _reset_overrides()
+
+
+# --- redact_pid unit tests ---------------------------------------------------
+
+
+def test_redact_pid_is_stable_within_process():
+    raw = "abc123XY"
+    assert redact_pid(raw) == redact_pid(raw)
+
+
+def test_redact_pid_differs_from_raw():
+    raw = "abc123XY"
+    assert redact_pid(raw) != raw
+
+
+def test_redact_pid_differs_for_different_inputs():
+    assert redact_pid("aaa") != redact_pid("bbb")
+
+
+def test_redact_pid_none_returns_placeholder():
+    result = redact_pid(None)
+    assert result == "--------"
+    assert len(result) == 8
+
+
+def test_redact_pid_empty_string_returns_placeholder():
+    assert redact_pid("") == "--------"
+
+
+def test_redact_pid_output_is_8_hex_chars():
+    result = redact_pid("sometoken")
+    assert len(result) == 8
+    assert all(c in "0123456789abcdef" for c in result)
+
+
+# --- pid-redaction integration test -----------------------------------------
+
+
+def test_raw_pids_never_appear_in_log_buffer():
+    """Create a room, join, add a bot — raw tokens must not appear in the buffer."""
+    setup_logging()
+    LOG_BUFFER.clear()
+
     client = TestClient(app)
-    delete_res = client.delete("/api/logs")
-    assert delete_res.status_code == 200
-    after_lines = [e["line"] for e in LOG_BUFFER.snapshot()[0]]
-    # After clear: pre-clear entries are gone; the clear acknowledgement line is in.
-    assert not any("about-to-be-cleared" in ln for ln in after_lines)
-    assert any("cleared" in ln.lower() for ln in after_lines)
+    create_res = client.post("/api/rooms", json={"name": "Alice"}).json()
+    host_pid = create_res["pid"]
+    code = create_res["code"]
+
+    join_res = client.post(f"/api/rooms/{code}/join", json={"name": "Bob"}).json()
+    guest_pid = join_res["pid"]
+
+    bot_res = client.post(f"/api/rooms/{code}/bot", json={"host_pid": host_pid}).json()
+    assert bot_res.get("ok")
+
+    buf = LOG_BUFFER.dump_text()
+    assert host_pid not in buf, "raw host_pid leaked into log buffer"
+    assert guest_pid not in buf, "raw guest_pid leaked into log buffer"
+
+
+# --- localhost guard tests ---------------------------------------------------
+
+
+def test_log_endpoints_return_403_for_non_loopback():
+    """TestClient presents as 'testclient' host — non-loopback, so all log routes return 403."""
+    setup_logging()
+    client = TestClient(app)
+    assert client.get("/api/logs").status_code == 403
+    assert client.get("/api/logs/download").status_code == 403
+    assert client.delete("/api/logs").status_code == 403
+
+
+def test_log_endpoints_allow_loopback():
+    """Loopback override allows all three endpoints."""
+    setup_logging()
+    LOG_BUFFER.clear()
+    logging.getLogger("princess.test").info("loopback-check")
+    client = _loopback_client()
+    try:
+        assert client.get("/api/logs").status_code == 200
+        assert client.get("/api/logs/download").status_code == 200
+        assert client.delete("/api/logs").status_code == 200
+    finally:
+        _reset_overrides()
+
+
+def test_require_localhost_none_client_returns_403():
+    """require_localhost must fail closed when request.client is None."""
+    mock_request = MagicMock()
+    mock_request.client = None
+
+    async def _run():
+        try:
+            await require_localhost(mock_request)
+            return False
+        except FastAPIHTTPException as exc:
+            return exc.status_code == 403
+
+    assert asyncio.run(_run())

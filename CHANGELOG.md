@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Session tokens (`pid` / `host_pid`) are now redacted before being written to the log buffer. A per-process-salted SHA-256 digest (8 hex chars) replaces each raw value — stable within a run for grep/correlation but non-reversible and non-pre-computable from log contents. [redact-pids-in-logs]
+- The log API endpoints (`GET /api/logs`, `GET /api/logs/download`, `DELETE /api/logs`) now return **403 Forbidden** for any request whose source IP is not a loopback address (`127.0.0.1` / `::1`). Access is limited to operators with shell access to the host. [logs-localhost-only]
+
 ### Added
 
 - Hall of Princesses — persistent global leaderboard at `/leaderboard` plus `GET /api/leaderboard?limit=&sort=wins|winrate|rounds&min_rounds=`. Princess wins, last-place finishes, and rounds played aggregate by normalized name across all rooms and all server restarts. Stored in the existing `PRINCESS_DB_PATH` SQLite database. Humans only — bots never appear. Page is linked from the desktop footer and the mobile lobby switch row. [global-leaderboard]

@@ -33,7 +33,7 @@ from fastapi import WebSocket
 
 from .ai import decide
 from .game import Game, GameConfig, Player, Source
-from .logging_config import room_logger
+from .logging_config import redact_pid, room_logger
 
 ROOM_CODE_CHARS = string.ascii_uppercase + string.digits
 ROOM_CODE_LEN = 4
@@ -314,7 +314,7 @@ class Room:
         rlog.info(
             "game initialized phase=%s seats=%s config=%s",
             self.game.phase,
-            [(s.name, "bot" if s.is_bot else "human") for s in self.seats],
+            [(s.name, "bot" if s.is_bot else "human", redact_pid(s.pid)) for s in self.seats],
             self.config.to_dict(),
         )
         # Bots auto-pick their three highest-ranked cards for face-up.
@@ -339,7 +339,7 @@ class Room:
         result = self.game.set_face_up(pid, ranked[:3])
         room_logger(self.code).debug(
             "bot auto-pick face_up pid=%s indices=%s ok=%s",
-            pid,
+            redact_pid(pid),
             ranked[:3],
             result.ok,
         )
@@ -386,7 +386,7 @@ class Room:
             rlog.debug(
                 "bot step=%d pid=%s name=%s pile_top=%s hand=[%s] active=%s",
                 step,
-                current.pid,
+                redact_pid(current.pid),
                 current.name,
                 top,
                 hand_summary,
@@ -401,7 +401,7 @@ class Room:
             decision = decide(self.game, current, rng=rng)
             rlog.info(
                 "bot decision pid=%s name=%s action=%s source=%s indices=%s",
-                current.pid,
+                redact_pid(current.pid),
                 current.name,
                 decision.action,
                 decision.source.value if decision.source else None,
@@ -416,24 +416,24 @@ class Room:
                 if not result.ok:
                     rlog.warning(
                         "bot action rejected pid=%s error=%r — forcing pickup",
-                        current.pid,
+                        redact_pid(current.pid),
                         result.error,
                     )
                     result = self.game.pickup(current.pid)
                     if not result.ok:
                         rlog.error(
                             "bot pickup also failed pid=%s error=%r — aborting",
-                            current.pid,
+                            redact_pid(current.pid),
                             result.error,
                         )
                         return
             except Exception:  # pylint: disable=broad-exception-caught
-                rlog.exception("bot crashed pid=%s — forcing pickup", current.pid)
+                rlog.exception("bot crashed pid=%s — forcing pickup", redact_pid(current.pid))
                 self.game.pickup(current.pid)
             rlog.info(
                 "bot action result pid=%s burned=%s picked_up=%s same_again=%s "
                 "finished=%s game_over=%s",
-                current.pid,
+                redact_pid(current.pid),
                 result.burned,
                 result.picked_up,
                 result.same_player_again,

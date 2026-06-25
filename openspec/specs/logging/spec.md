@@ -57,9 +57,34 @@ Logs about a specific room SHALL use a logger named `princess.room.<code>` so an
 - **WHEN** a play happens in room `AB12`
 - **THEN** the resulting log line includes the substring `princess.room.AB12`
 
+### Requirement: Session tokens are redacted in logs
+
+No log entry — whether buffered in memory or mirrored to stdout — SHALL contain a raw session token. Wherever a `pid`, `host_pid`, or `bot_pid` value would be logged, the server SHALL emit a redacted token in its place. The redaction SHALL be:
+
+- **Non-reversible**: the raw token MUST NOT be recoverable from the log contents.
+- **Non-pre-computable**: the mapping MUST be salted with a value generated fresh per process run, so a reader cannot confirm or rainbow-table a guessed token.
+- **Stable within a process run**: the same raw token MUST map to the same redacted value for the lifetime of the process, so a single seat can be correlated across multiple log lines.
+
+The redacted value SHALL NOT equal the raw token. The `pid=<value>` field shape SHALL be preserved (only the value changes), and room `code` values — which are not credentials — SHALL continue to be logged in clear text.
+
+#### Scenario: Raw tokens never reach the buffer
+
+- **WHEN** a room is created, a seat joins, a bot is added, and a play is made
+- **THEN** none of the raw `pid` / `host_pid` values returned to those clients appears anywhere in `GET /api/logs` output or the downloaded buffer
+
+#### Scenario: Redacted token is stable and non-raw
+
+- **WHEN** the same raw `pid` is logged on two separate lines within one process run
+- **THEN** both lines carry the identical redacted value, and that value is not equal to the raw `pid`
+
+#### Scenario: Redaction is salted per run
+
+- **WHEN** the server process restarts and the same raw `pid` is logged again
+- **THEN** the redacted value differs from the value produced before the restart
+
 ### Requirement: Instrumented events
 
-The server SHALL emit at least one log entry for each of: room creation, seat join, bot addition, config update, game start, swap-phase set_face_up, every play attempt (success and rejection), every pickup, bot decisions, bot action results, the bot-loop safety cap firing, abort, rematch, leave, WebSocket connect, WebSocket disconnect, and unhandled WebSocket handler exceptions.
+The server SHALL emit at least one log entry for each of: room creation, seat join, bot addition, config update, game start, swap-phase set_face_up, every play attempt (success and rejection), every pickup, bot decisions, bot action results, the bot-loop safety cap firing, abort, rematch, leave, WebSocket connect, WebSocket disconnect, and unhandled WebSocket handler exceptions. Any session token (`pid`, `host_pid`, `bot_pid`) included in these entries SHALL be redacted per the "Session tokens are redacted in logs" requirement.
 
 #### Scenario: Successful play yields an INFO entry
 
@@ -69,34 +94,49 @@ The server SHALL emit at least one log entry for each of: room creation, seat jo
 #### Scenario: Rejected play yields a WARN entry
 
 - **WHEN** a human play is rejected by the engine
-- **THEN** the per-room logger emits a `WARNING` line beginning with `action rejected pid=…`
+- **THEN** the per-room logger emits a `WARNING` line beginning with `action rejected pid=…` and the value after `pid=` is the redacted token, not the raw `pid`
 
 ### Requirement: Paginated read endpoint
 
-The server SHALL expose `GET /api/logs?since=<int>&limit=<int>` returning `{"entries": [...], "last_id": <int>, "capacity": <int>}`. Each entry SHALL have `id` and `line`. Only entries with `id > since` SHALL be returned, capped at `limit` (default 500). The endpoint SHALL be safe to poll.
+The server SHALL expose `GET /api/logs?since=<int>&limit=<int>` returning `{"entries": [...], "last_id": <int>, "capacity": <int>}`. Each entry SHALL have `id` and `line`. Only entries with `id > since` SHALL be returned, capped at `limit` (default 500). The endpoint SHALL be safe to poll. Access SHALL be restricted to loopback clients (source IP `127.0.0.1` or `::1`); requests from any other source IP SHALL receive `403 Forbidden`.
 
 #### Scenario: Returns only new entries after a cursor
 
-- **WHEN** the buffer contains entries with ids 100–110 and the client requests `since=105`
+- **WHEN** the buffer contains entries with ids 100–110 and a loopback client requests `since=105`
 - **THEN** the response `entries` contains exactly ids 106–110
+
+#### Scenario: Non-loopback client is rejected
+
+- **WHEN** a request arrives at `GET /api/logs` from a non-loopback source IP
+- **THEN** the server responds with HTTP 403 Forbidden
 
 ### Requirement: Download endpoint
 
-The server SHALL expose `GET /api/logs/download` returning the full current buffer as a `text/plain` response with `Content-Disposition: attachment; filename="princess.log"`. An empty buffer SHALL return a single-line placeholder rather than an empty body.
+The server SHALL expose `GET /api/logs/download` returning the full current buffer as a `text/plain` response with `Content-Disposition: attachment; filename="princess.log"`. An empty buffer SHALL return a single-line placeholder rather than an empty body. Access SHALL be restricted to loopback clients (source IP `127.0.0.1` or `::1`); requests from any other source IP SHALL receive `403 Forbidden`.
 
 #### Scenario: Browser downloads as attachment
 
-- **WHEN** the client requests `/api/logs/download`
+- **WHEN** a loopback client requests `/api/logs/download`
 - **THEN** the response carries `Content-Type: text/plain` and `Content-Disposition: attachment; filename="princess.log"`
+
+#### Scenario: Non-loopback client is rejected
+
+- **WHEN** a request arrives at `GET /api/logs/download` from a non-loopback source IP
+- **THEN** the server responds with HTTP 403 Forbidden
 
 ### Requirement: Clear endpoint
 
-The server SHALL expose `DELETE /api/logs` that empties the buffer and emits a single `INFO` entry recording the clear action.
+The server SHALL expose `DELETE /api/logs` that empties the buffer and emits a single `INFO` entry recording the clear action. Access SHALL be restricted to loopback clients (source IP `127.0.0.1` or `::1`); requests from any other source IP SHALL receive `403 Forbidden`.
 
 #### Scenario: Clear empties the buffer
 
-- **WHEN** the client calls `DELETE /api/logs`
+- **WHEN** a loopback client calls `DELETE /api/logs`
 - **THEN** the immediately subsequent `GET /api/logs?since=0` returns at most a single entry (the clear acknowledgement)
+
+#### Scenario: Non-loopback client cannot clear logs
+
+- **WHEN** a request arrives at `DELETE /api/logs` from a non-loopback source IP
+- **THEN** the server responds with HTTP 403 Forbidden and the buffer is unchanged
 
 ### Requirement: Idempotent setup
 

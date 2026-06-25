@@ -23,11 +23,13 @@ You may obtain a copy of the License at
 from __future__ import annotations
 
 import collections
+import hashlib
 import itertools
 import json
 import logging
 import logging.handlers
 import os
+import secrets
 import sys
 import threading
 import time
@@ -41,6 +43,23 @@ DEFAULT_LOG_MAX_BYTES = 10_485_760  # 10 MB
 DEFAULT_LOG_BACKUP_COUNT = 5
 
 _ROOM_LOGGER_PREFIX = "princess.room."
+
+# Per-process salt — rotates each restart so digests can't be pre-computed.
+_PID_SALT: bytes = secrets.token_bytes(16)
+
+_REDACTED_PLACEHOLDER = "--------"
+
+
+def redact_pid(raw: str | None) -> str:
+    """Return a stable, non-reversible 8-hex-char token for ``raw``.
+
+    Non-reversible and salted per process run. The same value maps to the
+    same digest within one process, but digests differ after restart.
+    Safe to call with None or empty string (returns a fixed placeholder).
+    """
+    if not raw:
+        return _REDACTED_PLACEHOLDER
+    return hashlib.sha256(_PID_SALT + raw.encode()).hexdigest()[:8]
 
 
 def _room_code_from_logger(name: str) -> str | None:
